@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Seuranta">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Seuranta</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+  :root{
+    --bg:#12151A;
+    --surface:#1B1F26;
+    --surface-2:#232830;
+    --surface-3:#2A303A;
+    --border:#2E3440;
+    --teal:#4FBDAE;
+    --teal-dim:#2E4A47;
+    --amber:#E2A24C;
+    --amber-dim:#4A3D28;
+    --text:#ECEDEE;
+    --text-dim:#9AA3AD;
+    --text-faint:#5C6470;
+    --danger:#D9705A;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+    overscroll-behavior:none;
+  }
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif; margin:0;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  header{
+    padding:22px 20px 16px;
+    border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg, rgba(79,189,174,0.08), transparent);
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+  }
+  header .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--teal);
+    margin-bottom:4px;
+  }
+  header h1{font-size:22px; font-weight:600; letter-spacing:-0.01em;}
+  header .sub{color:var(--text-dim); font-size:13px; margin-top:3px;}
+  .logout-btn{
+    background:none; border:1px solid var(--border); color:var(--text-faint);
+    font-size:12px; padding:7px 12px; border-radius:20px; cursor:pointer;
+    font-family:'Inter',sans-serif; white-space:nowrap; margin-top:2px;
+  }
+
+  main{
+    flex:1;
+    overflow-y:auto;
+    padding:18px 16px 100px;
+    max-width:560px;
+    width:100%;
+    margin:0 auto;
+  }
+
+  .view{display:none;}
+  .view.active{display:block; animation:fadein .25s ease;}
+  @keyframes fadein{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:18px;
+    margin-bottom:14px;
+  }
+  .card-title{
+    font-size:13px;
+    font-weight:600;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    margin-bottom:14px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .card-title .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);}
+
+  label{
+    display:block;
+    font-size:12.5px;
+    color:var(--text-dim);
+    margin-bottom:6px;
+    font-weight:500;
+  }
+  .field{margin-bottom:14px;}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+
+  input[type=text], input[type=number], input[type=date], input[type=email], textarea, select{
+    width:100%;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:10px;
+    padding:11px 12px;
+    font-size:15px;
+    font-family:'Inter',sans-serif;
+    outline:none;
+    transition:border-color .15s;
+  }
+  input:focus, textarea:focus, select:focus{border-color:var(--teal);}
+  textarea{resize:vertical; min-height:56px;}
+  input[type=number]{font-family:'IBM Plex Mono',monospace;}
+
+  .scale{display:flex; gap:6px;}
+  .scale button{
+    flex:1;
+    padding:10px 0;
+    border-radius:9px;
+    border:1px solid var(--border);
+    background:var(--surface-2);
+    color:var(--text-dim);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .scale button.sel{background:var(--teal-dim); border-color:var(--teal); color:var(--teal);}
+
+  .chips{display:flex; flex-wrap:wrap; gap:8px;}
+  .chip{
+    padding:8px 12px;
+    border-radius:20px;
+    border:1px solid var(--border);
+    background:var(--surface-2);
+    color:var(--text-dim);
+    font-size:13px;
+    cursor:pointer;
+    user-select:none;
+  }
+  .chip.sel{background:var(--amber-dim); border-color:var(--amber); color:var(--amber);}
+
+  .btn{
+    width:100%;
+    padding:13px;
+    border-radius:10px;
+    border:none;
+    background:var(--teal);
+    color:#0C1512;
+    font-weight:600;
+    font-size:15px;
+    font-family:'Inter',sans-serif;
+    cursor:pointer;
+    margin-top:4px;
+  }
+  .btn:active{transform:scale(0.985);}
+  .btn:disabled{opacity:0.5; cursor:default;}
+  .btn-ghost{
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--text-dim);
+  }
+
+  .entry{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    padding:11px 0;
+    border-bottom:1px solid var(--border);
+    gap:10px;
+  }
+  .entry:last-child{border-bottom:none;}
+  .entry-main{font-size:14px;}
+  .entry-meta{font-size:12px; color:var(--text-faint); margin-top:2px;}
+  .entry-val{font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--teal); white-space:nowrap;}
+  .del{
+    background:none; border:none; color:var(--text-faint);
+    font-size:18px; line-height:1; cursor:pointer; padding:2px 4px;
+  }
+
+  .empty{color:var(--text-faint); font-size:13px; text-align:center; padding:18px 0;}
+
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .stat{background:var(--surface-2); border-radius:10px; padding:14px;}
+  .stat .num{font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600; color:var(--teal);}
+  .stat .lbl{font-size:11.5px; color:var(--text-dim); margin-top:2px;}
+  .stat.warn .num{color:var(--amber);}
+
+  .spark{width:100%; height:54px; margin-top:6px;}
+
+  nav{
+    position:fixed;
+    bottom:0; left:0; right:0;
+    background:rgba(27,31,38,0.92);
+    backdrop-filter:blur(10px);
+    border-top:1px solid var(--border);
+    display:flex;
+    padding:8px 6px calc(8px + env(safe-area-inset-bottom));
+    z-index:10;
+  }
+  nav button{
+    flex:1;
+    background:none;
+    border:none;
+    color:var(--text-faint);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    font-size:11px;
+    font-family:'Inter',sans-serif;
+    padding:6px 0;
+    cursor:pointer;
+  }
+  nav button.active{color:var(--teal);}
+  nav svg{width:20px; height:20px;}
+
+  .toast{
+    position:fixed;
+    bottom:88px; left:50%;
+    transform:translateX(-50%) translateY(10px);
+    background:var(--surface-3);
+    border:1px solid var(--teal);
+    color:var(--text);
+    padding:10px 18px;
+    border-radius:24px;
+    font-size:13px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .2s, transform .2s;
+    z-index:20;
+    white-space:nowrap;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  #loginScreen{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex:1;
+    padding:24px;
+  }
+  .login-card{max-width:380px; width:100%;}
+  .login-card .eyebrow{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--teal); margin-bottom:6px;
+  }
+  .login-card h1{font-size:24px; margin-bottom:6px;}
+  .login-card .sub{color:var(--text-dim); font-size:13.5px; margin-bottom:22px; line-height:1.5;}
+  .login-note{font-size:12.5px; color:var(--text-faint); margin-top:14px; text-align:center; line-height:1.5;}
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="card login-card">
+    <div class="eyebrow">Vatsan seuranta</div>
+    <h1>Kirjaudu sisään</h1>
+    <div class="sub">Syötä sähköpostiosoitteesi, niin lähetämme kirjautumislinkin. Ei salasanaa.</div>
+    <div class="field">
+      <label>Sähköposti</label>
+      <input type="email" id="loginEmail" placeholder="oma@sahkoposti.fi" autocomplete="email">
+    </div>
+    <button class="btn" id="loginBtn" onclick="sendMagicLink()">Lähetä kirjautumislinkki</button>
+    <div class="login-note" id="loginNote"></div>
+  </div>
+</div>
+
+<div id="appRoot" style="display:none; flex-direction:column; flex:1; min-height:100vh;">
+
+<header>
+  <div>
+    <div class="eyebrow">Vatsan seuranta</div>
+    <h1 id="headerTitle">Ruoka</h1>
+    <div class="sub" id="headerSub">Kirjaa tämän hetken ateria</div>
+  </div>
+  <button class="logout-btn" onclick="logout()">Kirjaudu ulos</button>
+</header>
+
+<main>
+
+  <!-- RUOKA -->
+  <div class="view active" id="view-ruoka">
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>Uusi merkintä</div>
+      <div class="field">
+        <label>Päivämäärä</label>
+        <input type="date" id="f-date">
+      </div>
+      <div class="field">
+        <label>Ateria</label>
+        <select id="f-meal">
+          <option>Aamiainen</option>
+          <option>Lounas</option>
+          <option>Päivällinen</option>
+          <option>Välipala</option>
+          <option>Juoma</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Ruoka / juoma ja määrä</label>
+        <input type="text" id="f-item" placeholder="esim. Kaurapuuro 2dl + 2dl maitoa">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Energia (kcal, arvio)</label>
+          <input type="number" id="f-kcal" placeholder="350">
+        </div>
+        <div class="field"><label>&nbsp;</label><div style="height:44px;"></div></div>
+      </div>
+      <div class="field">
+        <label>Sisältää</label>
+        <div class="chips" id="f-tags">
+          <div class="chip" data-tag="Maito">Maito</div>
+          <div class="chip" data-tag="Gluteeni">Gluteeni</div>
+          <div class="chip" data-tag="Sipuli/valkosipuli">Sipuli/valkosipuli</div>
+          <div class="chip" data-tag="Palkokasvit">Palkokasvit</div>
+          <div class="chip" data-tag="Hiilihapote">Hiilihapote</div>
+          <div class="chip" data-tag="Alkoholi">Alkoholi</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Muistiinpanot</label>
+        <textarea id="f-notes" placeholder="valinnainen"></textarea>
+      </div>
+      <button class="btn" id="f-save-btn" onclick="saveFood()">Tallenna ateria</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>Tänään</div>
+      <div id="foodList"><div class="empty">Ladataan…</div></div>
+    </div>
+  </div>
+
+  <!-- TURVOTUS -->
+  <div class="view" id="view-turvotus">
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>Päivän merkintä</div>
+      <div class="field">
+        <label>Päivämäärä</label>
+        <input type="date" id="t-date">
+      </div>
+      <div class="field">
+        <label>Turvotus aamulla</label>
+        <div class="scale" id="t-am-scale"></div>
+      </div>
+      <div class="field">
+        <label>Turvotus illalla</label>
+        <div class="scale" id="t-pm-scale"></div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Vyötärö aamulla (cm)</label>
+          <input type="number" step="0.1" id="t-waist-am" placeholder="91.5">
+        </div>
+        <div class="field">
+          <label>Vyötärö illalla (cm)</label>
+          <input type="number" step="0.1" id="t-waist-pm" placeholder="93.5">
+        </div>
+      </div>
+      <div class="field">
+        <label>Muut oireet</label>
+        <input type="text" id="t-symptoms" placeholder="esim. ilmavaivat, kipu, väsymys">
+      </div>
+      <div class="field">
+        <label>Epäilty aiheuttaja</label>
+        <input type="text" id="t-cause" placeholder="esim. sipulia lounaalla">
+      </div>
+      <div class="field">
+        <label>Muistiinpanot</label>
+        <textarea id="t-notes"></textarea>
+      </div>
+      <button class="btn" id="t-save-btn" onclick="saveSymptom()">Tallenna päivä</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>Viimeisimmät päivät</div>
+      <div id="symptomList"><div class="empty">Ladataan…</div></div>
+    </div>
+  </div>
+
+  <!-- LIIKUNTA -->
+  <div class="view" id="view-liikunta">
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>Uusi treenimerkintä</div>
+      <div class="field">
+        <label>Päivämäärä</label>
+        <input type="date" id="e-date">
+      </div>
+      <div class="field">
+        <label>Laji</label>
+        <select id="e-type">
+          <option>Kuntosali</option>
+          <option>Uinti</option>
+          <option>Muu</option>
+        </select>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Kesto (min)</label>
+          <input type="number" id="e-duration" placeholder="60">
+        </div>
+        <div class="field">
+          <label>Koettu teho</label>
+          <div class="scale" id="e-scale" style="margin-top:2px;"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Fiilis / vointi</label>
+        <input type="text" id="e-feeling" placeholder="esim. hyvä, jaksoi hyvin">
+      </div>
+      <div class="field">
+        <label>Muistiinpanot</label>
+        <textarea id="e-notes"></textarea>
+      </div>
+      <button class="btn" id="e-save-btn" onclick="saveExercise()">Tallenna treeni</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>Viimeisimmät treenit</div>
+      <div id="exerciseList"><div class="empty">Ladataan…</div></div>
+    </div>
+  </div>
+
+  <!-- YHTEENVETO -->
+  <div class="view" id="view-yhteenveto">
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>Viimeiset 7 päivää</div>
+      <div class="stat-grid">
+        <div class="stat"><div class="num mono" id="s-kcal">–</div><div class="lbl">Energia yht. (kcal)</div></div>
+        <div class="stat" id="s-gap-card"><div class="num mono" id="s-gap">–</div><div class="lbl">Vyötärön ero ilta−aamu ka. (cm)</div></div>
+        <div class="stat"><div class="num mono" id="s-waist-am">–</div><div class="lbl">Vyötärö aamu ka. (cm)</div></div>
+        <div class="stat"><div class="num mono" id="s-bloat">–</div><div class="lbl">Turvotus ka. (1–5)</div></div>
+        <div class="stat"><div class="num mono" id="s-gym">–</div><div class="lbl">Kuntosalikerrat</div></div>
+        <div class="stat"><div class="num mono" id="s-swim">–</div><div class="lbl">Uintikerrat</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>Vyötärön ero, viim. 14 pv</div>
+      <svg class="spark" id="sparkGap" viewBox="0 0 300 54" preserveAspectRatio="none"></svg>
+      <div class="empty" id="sparkGapEmpty" style="display:none;">Ei vielä tarpeeksi tietoa</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>Aamuvyötärö, viim. 14 pv</div>
+      <svg class="spark" id="sparkWaist" viewBox="0 0 300 54" preserveAspectRatio="none"></svg>
+      <div class="empty" id="sparkWaistEmpty" style="display:none;">Ei vielä tarpeeksi tietoa</div>
+    </div>
+  </div>
+
+</main>
+
+<nav>
+  <button class="active" data-view="ruoka" onclick="switchView('ruoka')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3v8a3 3 0 006 0V3M6 3v6M9 3v6M12 3v6M18 3c-2 2-2 5-2 7s0 3 1 3 1-1 1-1v9"/></svg>
+    Ruoka
+  </button>
+  <button data-view="turvotus" onclick="switchView('turvotus')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3c3 4 7 8.5 7 12.5A7 7 0 015 15.5C5 11.5 9 7 12 3z"/></svg>
+    Turvotus
+  </button>
+  <button data-view="liikunta" onclick="switchView('liikunta')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6.5 6.5l11 11M4 9l3-3 3 3M20 15l-3 3-3-3M14.5 3.5l1.5 1.5M8 17l1.5 1.5"/></svg>
+    Liikunta
+  </button>
+  <button data-view="yhteenveto" onclick="switchView('yhteenveto')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V10M11 19V5M18 19v-7"/></svg>
+    Yhteenveto
+  </button>
+</nav>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// SUPABASE CONFIG
+// ============================================================
+const SUPABASE_URL = 'https://hdjokddpwweehvoeaazn.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_EEnBhRtc4kpdX3Yun41kGQ_dOfpRosX';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+});
+
+const titles = {
+  ruoka: ["Ruoka", "Kirjaa tämän hetken ateria"],
+  turvotus: ["Turvotus", "Turvotus ja vyötärö, aamu &amp; ilta"],
+  liikunta: ["Liikunta", "Kuntosali- ja uintikerrat"],
+  yhteenveto: ["Yhteenveto", "Viimeisen viikon trendit"]
+};
+
+let selTags = new Set();
+let tAm = null, tPm = null, eTeho = null;
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function daysAgo(n){
+  const d = new Date();
+  d.setDate(d.getDate()-n);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function fmtDate(iso){
+  const [y,m,d] = iso.split('-');
+  return `${d}.${m}.${y}`;
+}
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+// ============================================================
+// AUTH
+// ============================================================
+async function sendMagicLink(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const note = document.getElementById('loginNote');
+  const btn = document.getElementById('loginBtn');
+  if(!email){ note.textContent = 'Anna sähköpostiosoite.'; return; }
+  btn.disabled = true;
+  btn.textContent = 'Lähetetään…';
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.href }
+  });
+  btn.disabled = false;
+  btn.textContent = 'Lähetä kirjautumislinkki';
+  if(error){
+    note.textContent = 'Virhe: ' + error.message;
+  } else {
+    note.textContent = 'Linkki lähetetty osoitteeseen ' + email + '. Avaa se tästä laitteesta.';
+  }
+}
+
+async function logout(){
+  await sb.auth.signOut();
+  showLogin();
+}
+
+function showLogin(){
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appRoot').style.display = 'none';
+}
+
+async function showApp(){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appRoot').style.display = 'flex';
+  initFormsOnce();
+  await Promise.all([renderFood(), renderSymptoms(), renderExercise()]);
+}
+
+sb.auth.onAuthStateChange((event, session) => {
+  if(session) showApp(); else showLogin();
+});
+
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if(session) showApp(); else showLogin();
+})();
+
+// ============================================================
+// UI NAV / SCALES (init once app is shown)
+// ============================================================
+let initedForms = false;
+function initFormsOnce(){
+  if(initedForms) return;
+  initedForms = true;
+  document.getElementById('f-date').value = todayStr();
+  document.getElementById('t-date').value = todayStr();
+  document.getElementById('e-date').value = todayStr();
+  buildScale('t-am-scale', 5, v=>tAm=v);
+  buildScale('t-pm-scale', 5, v=>tPm=v);
+  buildScale('e-scale', 5, v=>eTeho=v);
+  document.getElementById('f-date').addEventListener('change', renderFood);
+  document.querySelectorAll('#f-tags .chip').forEach(chip=>{
+    chip.onclick = ()=>{
+      const tag = chip.dataset.tag;
+      if(selTags.has(tag)){ selTags.delete(tag); chip.classList.remove('sel'); }
+      else { selTags.add(tag); chip.classList.add('sel'); }
+    };
+  });
+}
+
+function switchView(name){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
+  document.getElementById('headerTitle').textContent = titles[name][0];
+  document.getElementById('headerSub').innerHTML = titles[name][1];
+  if(name==='yhteenveto') renderSummary();
+}
+
+function buildScale(containerId, max, onPick){
+  const c = document.getElementById(containerId);
+  c.innerHTML = '';
+  for(let i=1;i<=max;i++){
+    const b = document.createElement('button');
+    b.textContent = i;
+    b.type = 'button';
+    b.onclick = ()=>{ onPick(i); [...c.children].forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); };
+    c.appendChild(b);
+  }
+}
+
+// ============================================================
+// FOOD
+// ============================================================
+async function saveFood(){
+  const date = document.getElementById('f-date').value || todayStr();
+  const meal = document.getElementById('f-meal').value;
+  const item = document.getElementById('f-item').value.trim();
+  const kcal = parseFloat(document.getElementById('f-kcal').value) || null;
+  const notes = document.getElementById('f-notes').value.trim();
+  if(!item){ showToast('Kirjoita ruoka/juoma'); return; }
+  const btn = document.getElementById('f-save-btn');
+  btn.disabled = true;
+  const { error } = await sb.from('food_entries').insert({
+    entry_date: date, meal, item, kcal, tags: [...selTags], notes
+  });
+  btn.disabled = false;
+  if(error){ showToast('Virhe: ' + error.message); return; }
+  document.getElementById('f-item').value='';
+  document.getElementById('f-kcal').value='';
+  document.getElementById('f-notes').value='';
+  selTags.clear();
+  document.querySelectorAll('#f-tags .chip').forEach(c=>c.classList.remove('sel'));
+  showToast('Ateria tallennettu');
+  renderFood();
+}
+
+async function renderFood(){
+  const today = document.getElementById('f-date').value || todayStr();
+  const el = document.getElementById('foodList');
+  const { data, error } = await sb.from('food_entries')
+    .select('*').eq('entry_date', today).order('created_at', {ascending:false});
+  if(error){ el.innerHTML = `<div class="empty">Virhe: ${escapeHtml(error.message)}</div>`; return; }
+  if(!data || data.length===0){ el.innerHTML = '<div class="empty">Ei merkintöjä vielä tänään</div>'; return; }
+  el.innerHTML = data.map(e=>`
+    <div class="entry">
+      <div>
+        <div class="entry-main">${escapeHtml(e.meal)}: ${escapeHtml(e.item)}</div>
+        <div class="entry-meta">${(e.tags||[]).join(', ')}${e.notes?' · '+escapeHtml(e.notes):''}</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="entry-val">${e.kcal?e.kcal+' kcal':''}</div>
+        <button class="del" onclick="delFood(${e.id})">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+async function delFood(id){
+  const { error } = await sb.from('food_entries').delete().eq('id', id);
+  if(error){ showToast('Virhe: ' + error.message); return; }
+  renderFood();
+}
+
+// ============================================================
+// SYMPTOM (upsert per date)
+// ============================================================
+async function saveSymptom(){
+  const date = document.getElementById('t-date').value || todayStr();
+  const rec = {
+    entry_date: date,
+    bloat_am: tAm, bloat_pm: tPm,
+    waist_am: parseFloat(document.getElementById('t-waist-am').value) || null,
+    waist_pm: parseFloat(document.getElementById('t-waist-pm').value) || null,
+    symptoms: document.getElementById('t-symptoms').value.trim(),
+    cause: document.getElementById('t-cause').value.trim(),
+    notes: document.getElementById('t-notes').value.trim(),
+    updated_at: new Date().toISOString()
+  };
+  const btn = document.getElementById('t-save-btn');
+  btn.disabled = true;
+  const { error } = await sb.from('symptom_entries')
+    .upsert(rec, { onConflict: 'user_id,entry_date' });
+  btn.disabled = false;
+  if(error){ showToast('Virhe: ' + error.message); return; }
+  showToast('Päivä tallennettu');
+  renderSymptoms();
+}
+
+async function renderSymptoms(){
+  const el = document.getElementById('symptomList');
+  const { data, error } = await sb.from('symptom_entries')
+    .select('*').order('entry_date', {ascending:false}).limit(10);
+  if(error){ el.innerHTML = `<div class="empty">Virhe: ${escapeHtml(error.message)}</div>`; return; }
+  if(!data || data.length===0){ el.innerHTML = '<div class="empty">Ei merkintöjä vielä</div>'; return; }
+  el.innerHTML = data.map(e=>{
+    const gap = (e.waist_am!=null && e.waist_pm!=null) ? (e.waist_pm-e.waist_am).toFixed(1) : null;
+    return `
+    <div class="entry">
+      <div>
+        <div class="entry-main">${fmtDate(e.entry_date)} · turvotus ${e.bloat_am??'–'}→${e.bloat_pm??'–'}</div>
+        <div class="entry-meta">${e.symptoms?escapeHtml(e.symptoms):''}${e.cause?' · syy: '+escapeHtml(e.cause):''}</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="entry-val">${gap!=null?(gap>0?'+':'')+gap+' cm':''}</div>
+        <button class="del" onclick="delSymptom('${e.entry_date}')">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function delSymptom(date){
+  const { error } = await sb.from('symptom_entries').delete().eq('entry_date', date);
+  if(error){ showToast('Virhe: ' + error.message); return; }
+  renderSymptoms();
+}
+
+// ============================================================
+// EXERCISE
+// ============================================================
+async function saveExercise(){
+  const date = document.getElementById('e-date').value || todayStr();
+  const type = document.getElementById('e-type').value;
+  const duration_min = parseFloat(document.getElementById('e-duration').value) || null;
+  const feeling = document.getElementById('e-feeling').value.trim();
+  const notes = document.getElementById('e-notes').value.trim();
+  const btn = document.getElementById('e-save-btn');
+  btn.disabled = true;
+  const { error } = await sb.from('exercise_entries').insert({
+    entry_date: date, type, duration_min, intensity: eTeho, feeling, notes
+  });
+  btn.disabled = false;
+  if(error){ showToast('Virhe: ' + error.message); return; }
+  document.getElementById('e-duration').value='';
+  document.getElementById('e-feeling').value='';
+  document.getElementById('e-notes').value='';
+  showToast('Treeni tallennettu');
+  renderExercise();
+}
+
+async function renderExercise(){
+  const el = document.getElementById('exerciseList');
+  const { data, error } = await sb.from('exercise_entries')
+    .select('*').order('entry_date', {ascending:false}).limit(10);
+  if(error){ el.innerHTML = `<div class="empty">Virhe: ${escapeHtml(error.message)}</div>`; return; }
+  if(!data || data.length===0){ el.innerHTML = '<div class="empty">Ei merkintöjä vielä</div>'; return; }
+  el.innerHTML = data.map(e=>`
+    <div class="entry">
+      <div>
+        <div class="entry-main">${fmtDate(e.entry_date)} · ${escapeHtml(e.type)}</div>
+        <div class="entry-meta">${e.feeling?escapeHtml(e.feeling):''}</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="entry-val">${e.duration_min?e.duration_min+' min':''}</div>
+        <button class="del" onclick="delExercise(${e.id})">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+async function delExercise(id){
+  const { error } = await sb.from('exercise_entries').delete().eq('id', id);
+  if(error){ showToast('Virhe: ' + error.message); return; }
+  renderExercise();
+}
+
+// ============================================================
+// SUMMARY
+// ============================================================
+async function renderSummary(){
+  const cutoff7 = daysAgo(6);
+  const cutoff14 = daysAgo(13);
+
+  const [foodRes, symRes7, symRes14, exRes] = await Promise.all([
+    sb.from('food_entries').select('kcal').gte('entry_date', cutoff7),
+    sb.from('symptom_entries').select('*').gte('entry_date', cutoff7),
+    sb.from('symptom_entries').select('*').gte('entry_date', cutoff14).order('entry_date', {ascending:true}),
+    sb.from('exercise_entries').select('type').gte('entry_date', cutoff7)
+  ]);
+
+  const food7 = foodRes.data || [];
+  const sym7 = symRes7.data || [];
+  const sym14 = symRes14.data || [];
+  const ex7 = exRes.data || [];
+
+  const kcal7 = food7.reduce((s,e)=>s+(e.kcal||0),0);
+  document.getElementById('s-kcal').textContent = kcal7 ? Math.round(kcal7).toLocaleString('fi-FI') : '–';
+
+  const avg = (arr,key)=>{ const v=arr.map(e=>e[key]).filter(x=>x!=null); return v.length? (v.reduce((a,b)=>a+b,0)/v.length):null; };
+  const gapVals = sym7.filter(e=>e.waist_am!=null && e.waist_pm!=null).map(e=>e.waist_pm-e.waist_am);
+  const gapAvg = gapVals.length ? (gapVals.reduce((a,b)=>a+b,0)/gapVals.length) : null;
+  document.getElementById('s-gap').textContent = gapAvg!=null ? (gapAvg>0?'+':'')+gapAvg.toFixed(1) : '–';
+  document.getElementById('s-gap-card').classList.toggle('warn', gapAvg!=null && gapAvg>=2);
+  const waistAmAvg = avg(sym7,'waist_am');
+  document.getElementById('s-waist-am').textContent = waistAmAvg!=null ? waistAmAvg.toFixed(1) : '–';
+  const bloatVals = [...sym7.map(e=>e.bloat_am), ...sym7.map(e=>e.bloat_pm)].filter(x=>x!=null);
+  document.getElementById('s-bloat').textContent = bloatVals.length ? (bloatVals.reduce((a,b)=>a+b,0)/bloatVals.length).toFixed(1) : '–';
+
+  document.getElementById('s-gym').textContent = ex7.filter(e=>e.type==='Kuntosali').length;
+  document.getElementById('s-swim').textContent = ex7.filter(e=>e.type==='Uinti').length;
+
+  drawSpark('sparkGap', sym14.filter(e=>e.waist_am!=null&&e.waist_pm!=null).map(e=>e.waist_pm-e.waist_am), 'sparkGapEmpty', '#E2A24C');
+  drawSpark('sparkWaist', sym14.filter(e=>e.waist_am!=null).map(e=>e.waist_am), 'sparkWaistEmpty', '#4FBDAE');
+}
+
+function drawSpark(svgId, values, emptyId, color){
+  const svg = document.getElementById(svgId);
+  const emptyEl = document.getElementById(emptyId);
+  if(values.length<2){ svg.innerHTML=''; emptyEl.style.display='block'; return; }
+  emptyEl.style.display='none';
+  const w=300, h=54, pad=4;
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = (max-min)||1;
+  const step = (w-2*pad)/(values.length-1);
+  const pts = values.map((v,i)=>{
+    const x = pad + i*step;
+    const y = h-pad - ((v-min)/range)*(h-2*pad);
+    return [x,y];
+  });
+  const path = pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  const areaPath = path + ` L${pts[pts.length-1][0].toFixed(1)},${h} L${pts[0][0].toFixed(1)},${h} Z`;
+  svg.innerHTML = `
+    <path d="${areaPath}" fill="${color}" opacity="0.12"/>
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    ${pts.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.2" fill="${color}"/>`).join('')}
+  `;
+}
+</script>
+</body>
+</html>
