@@ -440,9 +440,48 @@
   <!-- YHTEENVETO -->
   <div class="view" id="view-yhteenveto">
     <div class="card">
+      <div class="card-title"><span class="dot"></span>Profiili (energiatasetta varten)</div>
+      <div class="row2">
+        <div class="field">
+          <label>Pituus (cm)</label>
+          <input type="number" id="p-height" placeholder="178">
+        </div>
+        <div class="field">
+          <label>Paino (kg)</label>
+          <input type="number" step="0.1" id="p-weight" placeholder="85">
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Ikä</label>
+          <input type="number" id="p-age" placeholder="40">
+        </div>
+        <div class="field">
+          <label>Sukupuoli</label>
+          <select id="p-sex">
+            <option value="mies">Mies</option>
+            <option value="nainen">Nainen</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Arkiaktiivisuus (ilman kirjattuja treenejä)</label>
+        <select id="p-activity">
+          <option value="1.2">Istumatyö, vähän liikettä</option>
+          <option value="1.375">Kohtalainen arkiliikkuminen</option>
+          <option value="1.55">Paljon liikettä arjessa</option>
+        </select>
+      </div>
+      <button class="btn" id="p-save-btn" onclick="saveProfile()">Tallenna profiili</button>
+      <div class="empty" style="margin-top:8px; text-align:left;" id="p-note">Perusaineenvaihdunta lasketaan Mifflin-St Jeor -kaavalla, treenien kulutus MET-arvioilla. Molemmat ovat arvioita, ei tarkkoja mittauksia.</div>
+    </div>
+
+    <div class="card">
       <div class="card-title"><span class="dot"></span>Viimeiset 7 päivää</div>
       <div class="stat-grid">
-        <div class="stat"><div class="num mono" id="s-kcal">–</div><div class="lbl">Energia yht. (kcal)</div></div>
+        <div class="stat"><div class="num mono" id="s-kcal">–</div><div class="lbl">Energiaa syöty ka./pv (kcal)</div></div>
+        <div class="stat"><div class="num mono" id="s-burn">–</div><div class="lbl">Arvioitu kulutus ka./pv (kcal)</div></div>
+        <div class="stat" id="s-balance-card"><div class="num mono" id="s-balance">–</div><div class="lbl">Energiatase ka./pv (kcal)</div></div>
         <div class="stat" id="s-gap-card"><div class="num mono" id="s-gap">–</div><div class="lbl">Vyötärön ero ilta−aamu ka. (cm)</div></div>
         <div class="stat"><div class="num mono" id="s-waist-am">–</div><div class="lbl">Vyötärö aamu ka. (cm)</div></div>
         <div class="stat"><div class="num mono" id="s-bloat">–</div><div class="lbl">Turvotus ka. (1–5)</div></div>
@@ -462,6 +501,8 @@
       <svg class="spark" id="sparkWaist" viewBox="0 0 300 54" preserveAspectRatio="none"></svg>
       <div class="empty" id="sparkWaistEmpty" style="display:none;">Ei vielä tarpeeksi tietoa</div>
     </div>
+
+    <button class="btn btn-ghost" id="exportBtn" onclick="exportFoodCsv()">Vie ruokapäiväkirja (lataa .csv)</button>
   </div>
 
 </main>
@@ -780,17 +821,73 @@ async function delExercise(id){
 }
 
 // ============================================================
+// PROFIILI & ENERGIATASE
+// ============================================================
+let userProfile = null;
+
+function metForExercise(type, intensity){
+  const i = intensity || 3;
+  if(type === 'Kuntosali') return 4 + i*0.6;
+  if(type === 'Uinti') return 6 + i*0.8;
+  return 4 + i*0.5; // Muu
+}
+function exerciseKcal(entry, weightKg){
+  if(!weightKg || !entry.duration_min) return 0;
+  const met = metForExercise(entry.type, entry.intensity);
+  return met * weightKg * (entry.duration_min/60);
+}
+function calcBMR(p){
+  if(!p || !p.height_cm || !p.weight_kg || !p.age || !p.sex) return null;
+  const base = 10*p.weight_kg + 6.25*p.height_cm - 5*p.age;
+  return p.sex === 'mies' ? base + 5 : base - 161;
+}
+
+async function loadProfile(){
+  const { data, error } = await sb.from('user_profile').select('*').maybeSingle();
+  if(error){ console.error(error); return; }
+  userProfile = data;
+  if(data){
+    document.getElementById('p-height').value = data.height_cm ?? '';
+    document.getElementById('p-weight').value = data.weight_kg ?? '';
+    document.getElementById('p-age').value = data.age ?? '';
+    document.getElementById('p-sex').value = data.sex ?? 'mies';
+    document.getElementById('p-activity').value = data.baseline_activity ?? '1.2';
+  }
+}
+
+async function saveProfile(){
+  const rec = {
+    height_cm: parseFloat(document.getElementById('p-height').value) || null,
+    weight_kg: parseFloat(document.getElementById('p-weight').value) || null,
+    age: parseInt(document.getElementById('p-age').value) || null,
+    sex: document.getElementById('p-sex').value,
+    baseline_activity: parseFloat(document.getElementById('p-activity').value),
+    updated_at: new Date().toISOString()
+  };
+  const btn = document.getElementById('p-save-btn');
+  btn.disabled = true;
+  const { error } = await sb.from('user_profile').upsert(rec, { onConflict: 'user_id' });
+  btn.disabled = false;
+  if(error){ showToast('Virhe: ' + error.message); return; }
+  userProfile = rec;
+  showToast('Profiili tallennettu');
+  renderSummary();
+}
+
+// ============================================================
 // SUMMARY
 // ============================================================
 async function renderSummary(){
   const cutoff7 = daysAgo(6);
   const cutoff14 = daysAgo(13);
 
+  if(userProfile === null) await loadProfile();
+
   const [foodRes, symRes7, symRes14, exRes] = await Promise.all([
-    sb.from('food_entries').select('kcal').gte('entry_date', cutoff7),
+    sb.from('food_entries').select('kcal,entry_date').gte('entry_date', cutoff7),
     sb.from('symptom_entries').select('*').gte('entry_date', cutoff7),
     sb.from('symptom_entries').select('*').gte('entry_date', cutoff14).order('entry_date', {ascending:true}),
-    sb.from('exercise_entries').select('type').gte('entry_date', cutoff7)
+    sb.from('exercise_entries').select('*').gte('entry_date', cutoff7)
   ]);
 
   const food7 = foodRes.data || [];
@@ -798,8 +895,31 @@ async function renderSummary(){
   const sym14 = symRes14.data || [];
   const ex7 = exRes.data || [];
 
-  const kcal7 = food7.reduce((s,e)=>s+(e.kcal||0),0);
-  document.getElementById('s-kcal').textContent = kcal7 ? Math.round(kcal7).toLocaleString('fi-FI') : '–';
+  const daysInWindow = 7;
+  const kcalSum = food7.reduce((s,e)=>s+(e.kcal||0),0);
+  const kcalPerDay = kcalSum / daysInWindow;
+  document.getElementById('s-kcal').textContent = kcalSum ? Math.round(kcalPerDay).toLocaleString('fi-FI') : '–';
+
+  const bmr = calcBMR(userProfile);
+  let burnPerDay = null;
+  if(bmr){
+    const baselineDaily = bmr * (userProfile.baseline_activity || 1.2);
+    const exerciseTotal = ex7.reduce((s,e)=>s+exerciseKcal(e, userProfile.weight_kg), 0);
+    burnPerDay = baselineDaily + (exerciseTotal / daysInWindow);
+    document.getElementById('s-burn').textContent = Math.round(burnPerDay).toLocaleString('fi-FI');
+  } else {
+    document.getElementById('s-burn').textContent = '–';
+  }
+
+  const balanceCard = document.getElementById('s-balance-card');
+  if(bmr && kcalSum){
+    const balance = kcalPerDay - burnPerDay;
+    document.getElementById('s-balance').textContent = (balance>0?'+':'') + Math.round(balance).toLocaleString('fi-FI');
+    balanceCard.classList.toggle('warn', balance > 0);
+  } else {
+    document.getElementById('s-balance').textContent = '–';
+    balanceCard.classList.remove('warn');
+  }
 
   const avg = (arr,key)=>{ const v=arr.map(e=>e[key]).filter(x=>x!=null); return v.length? (v.reduce((a,b)=>a+b,0)/v.length):null; };
   const gapVals = sym7.filter(e=>e.waist_am!=null && e.waist_pm!=null).map(e=>e.waist_pm-e.waist_am);
@@ -816,6 +936,83 @@ async function renderSummary(){
 
   drawSpark('sparkGap', sym14.filter(e=>e.waist_am!=null&&e.waist_pm!=null).map(e=>e.waist_pm-e.waist_am), 'sparkGapEmpty', '#E2A24C');
   drawSpark('sparkWaist', sym14.filter(e=>e.waist_am!=null).map(e=>e.waist_am), 'sparkWaistEmpty', '#4FBDAE');
+}
+
+function csvEscape(val){
+  if(val==null) return '';
+  const s = String(val);
+  if(/[",\n;]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+  return s;
+}
+
+async function exportFoodCsv(){
+  const btn = document.getElementById('exportBtn');
+  btn.disabled = true;
+  btn.textContent = 'Haetaan…';
+  if(userProfile === null) await loadProfile();
+  const [foodRes, exRes] = await Promise.all([
+    sb.from('food_entries').select('*').order('entry_date', {ascending:true}).order('created_at', {ascending:true}),
+    sb.from('exercise_entries').select('*')
+  ]);
+  btn.disabled = false;
+  btn.textContent = 'Vie ruokapäiväkirja (lataa .csv)';
+  const data = foodRes.data;
+  if(foodRes.error){ showToast('Virhe: ' + foodRes.error.message); return; }
+  if(!data || data.length===0){ showToast('Ei vietävää dataa'); return; }
+  const exByDate = new Map();
+  (exRes.data || []).forEach(e=>{
+    if(!exByDate.has(e.entry_date)) exByDate.set(e.entry_date, []);
+    exByDate.get(e.entry_date).push(e);
+  });
+  const bmr = calcBMR(userProfile);
+
+  const headers = ['Päivämäärä','Ateria','Ruoka/juoma','Energia (kcal)','Sisältää','Muistiinpanot'];
+  if(bmr) headers.push('Arvioitu kulutus (kcal)','Tase (kcal)');
+
+  // Ryhmittele päivän mukaan ja lisää päiväkohtainen summarivi
+  const byDate = new Map();
+  data.forEach(e => {
+    if(!byDate.has(e.entry_date)) byDate.set(e.entry_date, []);
+    byDate.get(e.entry_date).push(e);
+  });
+
+  const rows = [];
+  [...byDate.keys()].sort().forEach(date => {
+    const dayEntries = byDate.get(date);
+    dayEntries.forEach(e => {
+      rows.push([
+        fmtDate(e.entry_date), e.meal, e.item, e.kcal ?? '',
+        (e.tags||[]).join('; '), e.notes || ''
+      ]);
+    });
+    const dayTotal = dayEntries.reduce((s,e)=>s+(e.kcal||0), 0);
+    const summaryRow = [fmtDate(date), 'YHTEENSÄ', '', dayTotal || '', '', ''];
+    if(bmr){
+      const baselineDaily = bmr * (userProfile.baseline_activity || 1.2);
+      const exDay = exByDate.get(date) || [];
+      const exerciseKcalDay = exDay.reduce((s,e)=>s+exerciseKcal(e, userProfile.weight_kg), 0);
+      const burn = baselineDaily + exerciseKcalDay;
+      const balance = dayTotal - burn;
+      summaryRow.push(Math.round(burn), (balance>0?'+':'')+Math.round(balance));
+    }
+    rows.push(summaryRow);
+    rows.push(headers.map(()=>'')); // tyhjä rivi luettavuuden vuoksi
+  });
+
+  const csv = [headers, ...rows]
+    .map(r => r.map(csvEscape).join(';'))
+    .join('\r\n');
+  // BOM helps Excel/Numbers detect UTF-8 correctly for ä/ö/å
+  const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'ruokapaivakirja-' + todayStr() + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Ladattu: ' + data.length + ' riviä');
 }
 
 function drawSpark(svgId, values, emptyId, color){
