@@ -68,7 +68,9 @@
 
   main{
     flex:1;
+    min-height:0;
     overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
     padding:18px 16px 100px;
     max-width:560px;
     width:100%;
@@ -279,7 +281,7 @@
   </div>
 </div>
 
-<div id="appRoot" style="display:none; flex-direction:column; flex:1; min-height:100vh;">
+<div id="appRoot" style="display:none; flex-direction:column; flex:1; min-height:0; height:100vh; overflow:hidden;">
 
 <header>
   <div>
@@ -608,6 +610,7 @@ function switchView(name){
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
   document.getElementById('headerTitle').textContent = titles[name][0];
   document.getElementById('headerSub').innerHTML = titles[name][1];
+  document.querySelector('main').scrollTop = 0;
   if(name==='yhteenveto') renderSummary();
 }
 
