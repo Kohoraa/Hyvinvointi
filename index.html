@@ -596,8 +596,15 @@ async function sendMagicLink(){
   }
 }
 
+function cleanAuthUrl(){
+  if(window.location.hash.includes('access_token') || window.location.search.includes('code=')){
+    window.history.replaceState(null, '', window.location.pathname);
+  }
+}
+
 async function logout(){
   await sb.auth.signOut();
+  cleanAuthUrl();
   showLogin();
 }
 
@@ -607,6 +614,7 @@ function showLogin(){
 }
 
 async function showApp(){
+  cleanAuthUrl();
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appRoot').style.display = 'flex';
   initFormsOnce();
@@ -614,6 +622,7 @@ async function showApp(){
 }
 
 sb.auth.onAuthStateChange((event, session) => {
+  if(event === 'SIGNED_OUT'){ showLogin(); return; }
   if(session) showApp(); else showLogin();
 });
 
@@ -791,7 +800,7 @@ async function saveExercise(){
   document.getElementById('e-duration').value='';
   document.getElementById('e-feeling').value='';
   document.getElementById('e-notes').value='';
-  showToast('Treeni tallennettu, ok');
+  showToast('Treeni tallennettu');
   renderExercise();
 }
 
