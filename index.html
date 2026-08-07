@@ -298,6 +298,32 @@
   <div class="view active" id="view-ruoka">
     <div class="card">
       <div class="card-title"><span class="dot"></span>Uusi merkintä</div>
+
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:16px;">
+        <div style="font-size:12.5px; color:var(--text-dim); font-weight:600; margin-bottom:10px;">Rakenna ateria ainesosista</div>
+        <div class="field" style="margin-bottom:8px;">
+          <label>Hae ruoka-ainetta</label>
+          <input type="text" id="comp-search" placeholder="esim. kaura, kana, maito..." oninput="populateFoodSelect(this.value)">
+        </div>
+        <div class="row2">
+          <div class="field" style="margin-bottom:8px;">
+            <label>Ainesosa</label>
+            <select id="comp-food" onchange="onCompFoodChange()"></select>
+          </div>
+          <div class="field" style="margin-bottom:8px;">
+            <label>Määrä (<span id="comp-unit">g</span>)</label>
+            <input type="number" id="comp-amount" step="0.5">
+            <div id="comp-unit-toggle" style="display:none; gap:6px; margin-top:6px;">
+              <button type="button" class="chip" id="comp-unit-g" onclick="setCompUnit('g')" style="padding:5px 10px; font-size:12px;">g</button>
+              <button type="button" class="chip" id="comp-unit-dl" onclick="setCompUnit('dl')" style="padding:5px 10px; font-size:12px;">dl</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-ghost" type="button" onclick="addComponent()">+ Lisää ateriaan</button>
+        <div id="compList" style="margin-top:10px;"></div>
+        <div id="compTotal" style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--teal); margin-top:8px; display:none;"></div>
+      </div>
+
       <div class="field">
         <label>Päivämäärä</label>
         <input type="date" id="f-date">
@@ -551,6 +577,287 @@ const titles = {
   yhteenveto: ["Yhteenveto", "Viimeisen viikon trendit"]
 };
 
+// ============================================================
+// RUOKA-AINETIETOKANTA (kcal-arviointia varten)
+// ============================================================
+const FOOD_DB = [
+  // Viljatuotteet
+  {cat:'Viljatuotteet', name:'Kaurapuuro (veteen keitetty)', per100g:60, dlGrams:100},
+  {cat:'Viljatuotteet', name:'Kaurapuuro (maitoon keitetty)', per100g:85, dlGrams:105},
+  {cat:'Viljatuotteet', name:'Kauraryyni, kuiva', per100g:375, dlGrams:40},
+  {cat:'Viljatuotteet', name:'Mysli', per100g:370, dlGrams:40},
+  {cat:'Viljatuotteet', name:'Aamiaismurot (maustamattomat)', per100g:370, dlGrams:30},
+  {cat:'Viljatuotteet', name:'Aamiaismurot (maustetut/sokeroidut)', per100g:390, dlGrams:30},
+  {cat:'Viljatuotteet', name:'Ruisleipä', per100g:220},
+  {cat:'Viljatuotteet', name:'Vaalea vehnäleipä', per100g:260},
+  {cat:'Viljatuotteet', name:'Sekaleipä', per100g:240},
+  {cat:'Viljatuotteet', name:'Hapankorppu', per100g:350},
+  {cat:'Viljatuotteet', name:'Näkkileipä', per100g:340},
+  {cat:'Viljatuotteet', name:'Ruispalat/ruiskorput', per100g:355},
+  {cat:'Viljatuotteet', name:'Sämpylä', perUnit:180, unit:'kpl'},
+  {cat:'Viljatuotteet', name:'Croissant', perUnit:260, unit:'kpl'},
+  {cat:'Viljatuotteet', name:'Riisi, keitetty', per100g:130, dlGrams:150},
+  {cat:'Viljatuotteet', name:'Täysjyväriisi, keitetty', per100g:123, dlGrams:150},
+  {cat:'Viljatuotteet', name:'Peruna, keitetty', per100g:85},
+  {cat:'Viljatuotteet', name:'Bataatti, keitetty', per100g:90},
+  {cat:'Viljatuotteet', name:'Muusi (maidolla)', per100g:100},
+  {cat:'Viljatuotteet', name:'Pasta, keitetty', per100g:150, dlGrams:130},
+  {cat:'Viljatuotteet', name:'Kvinoa, keitetty', per100g:120, dlGrams:120},
+  {cat:'Viljatuotteet', name:'Ohra, keitetty', per100g:120, dlGrams:120},
+  {cat:'Viljatuotteet', name:'Tattari, keitetty', per100g:110, dlGrams:120},
+  {cat:'Viljatuotteet', name:'Karjalanpiirakka (perunatäyte)', perUnit:130, unit:'kpl'},
+
+  // Maitotuotteet
+  {cat:'Maitotuotteet', name:'Maito, rasvaton', per100g:35, dlGrams:100},
+  {cat:'Maitotuotteet', name:'Maito, kevyt 1%', per100g:42, dlGrams:100},
+  {cat:'Maitotuotteet', name:'Maito, täysmaito', per100g:61, dlGrams:100},
+  {cat:'Maitotuotteet', name:'Kaurajuoma', per100g:47, dlGrams:100},
+  {cat:'Maitotuotteet', name:'Soijajuoma', per100g:40, dlGrams:100},
+  {cat:'Maitotuotteet', name:'Mantelijuoma', per100g:24, dlGrams:100},
+  {cat:'Maitotuotteet', name:'Jugurtti, maustamaton', per100g:61, dlGrams:100},
+  {cat:'Maitotuotteet', name:'Jugurtti, maustettu', per100g:95, dlGrams:105},
+  {cat:'Maitotuotteet', name:'Kreikkalainen jogurtti', per100g:97, dlGrams:110},
+  {cat:'Maitotuotteet', name:'Viili', per100g:63, dlGrams:100},
+  {cat:'Maitotuotteet', name:'Rahka, maustamaton', per100g:70, dlGrams:110},
+  {cat:'Maitotuotteet', name:'Rahka, maustettu', per100g:110, dlGrams:115},
+  {cat:'Maitotuotteet', name:'Raejuusto', per100g:98},
+  {cat:'Maitotuotteet', name:'Kermaviili', per100g:200, dlGrams:100},
+  {cat:'Maitotuotteet', name:'Ruokakerma', per100g:250, dlGrams:100},
+  {cat:'Maitotuotteet', name:'Vaahtokerma', per100g:340, dlGrams:80},
+  {cat:'Maitotuotteet', name:'Jäätelö', per100g:210},
+  {cat:'Maitotuotteet', name:'Juustoviipale (Edam-tyyppinen)', perUnit:65, unit:'viipale'},
+  {cat:'Maitotuotteet', name:'Sulatejuusto', per100g:280},
+  {cat:'Maitotuotteet', name:'Mozzarella', per100g:280},
+  {cat:'Maitotuotteet', name:'Fetajuusto', per100g:265},
+  {cat:'Maitotuotteet', name:'Parmesaani', per100g:400},
+
+  // Proteiinit
+  {cat:'Proteiinit', name:'Kananmuna', perUnit:78, unit:'kpl'},
+  {cat:'Proteiinit', name:'Kananrinta, kypsä', per100g:165},
+  {cat:'Proteiinit', name:'Broilerin koipireisi, kypsä', per100g:215},
+  {cat:'Proteiinit', name:'Jauheliha 10%, kypsä', per100g:215},
+  {cat:'Proteiinit', name:'Jauheliha 20%, kypsä', per100g:265},
+  {cat:'Proteiinit', name:'Sianliha, kypsä', per100g:240},
+  {cat:'Proteiinit', name:'Naudanliha, kypsä', per100g:250},
+  {cat:'Proteiinit', name:'Lohi, kypsä', per100g:208},
+  {cat:'Proteiinit', name:'Kirjolohi, kypsä', per100g:190},
+  {cat:'Proteiinit', name:'Siika/silakka, kypsä', per100g:150},
+  {cat:'Proteiinit', name:'Tonnikala (säilyke, vedessä)', per100g:105},
+  {cat:'Proteiinit', name:'Katkarapu', per100g:95},
+  {cat:'Proteiinit', name:'Kalkkuna, kypsä', per100g:150},
+  {cat:'Proteiinit', name:'Nakit/makkara', per100g:260},
+  {cat:'Proteiinit', name:'Lihapullat', per100g:220},
+  {cat:'Proteiinit', name:'Verimakkara', per100g:220},
+  {cat:'Proteiinit', name:'Tofu', per100g:120},
+  {cat:'Proteiinit', name:'Härkis/nyhtökaura', per100g:170},
+  {cat:'Proteiinit', name:'Kikherneet, keitetyt', per100g:164, dlGrams:90},
+  {cat:'Proteiinit', name:'Mustapavut, keitetyt', per100g:130, dlGrams:90},
+  {cat:'Proteiinit', name:'Linssit, keitetyt', per100g:116, dlGrams:100},
+  {cat:'Proteiinit', name:'Herneet, keitetyt', per100g:110, dlGrams:85},
+
+  // Kasvikset
+  {cat:'Kasvikset', name:'Tomaatti', perUnit:22, unit:'kpl'},
+  {cat:'Kasvikset', name:'Kurkku', per100g:15},
+  {cat:'Kasvikset', name:'Paprika', perUnit:30, unit:'kpl'},
+  {cat:'Kasvikset', name:'Parsakaali, keitetty', per100g:35},
+  {cat:'Kasvikset', name:'Kukkakaali, keitetty', per100g:25},
+  {cat:'Kasvikset', name:'Valkokaali, raaka', per100g:25},
+  {cat:'Kasvikset', name:'Pinaatti, tuore', per100g:23},
+  {cat:'Kasvikset', name:'Salaatti (lehti)', per100g:15},
+  {cat:'Kasvikset', name:'Porkkana', perUnit:25, unit:'kpl'},
+  {cat:'Kasvikset', name:'Sipuli', perUnit:40, unit:'kpl'},
+  {cat:'Kasvikset', name:'Valkosipulinkynsi', perUnit:4, unit:'kpl'},
+  {cat:'Kasvikset', name:'Maissi, keitetty', per100g:96, dlGrams:85},
+  {cat:'Kasvikset', name:'Punajuuri, keitetty', per100g:44},
+  {cat:'Kasvikset', name:'Retiisi', perUnit:2, unit:'kpl'},
+  {cat:'Kasvikset', name:'Selleri', per100g:16},
+  {cat:'Kasvikset', name:'Purjo', per100g:29},
+  {cat:'Kasvikset', name:'Avokado', perUnit:230, unit:'kpl'},
+  {cat:'Kasvikset', name:'Herkkusieni', per100g:22},
+
+  // Hedelmät ja marjat
+  {cat:'Hedelmät ja marjat', name:'Banaani', perUnit:105, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Omena', perUnit:80, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Päärynä', perUnit:100, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Appelsiini', perUnit:65, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Mandariini', perUnit:40, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Viinirypäleet', per100g:69, dlGrams:60},
+  {cat:'Hedelmät ja marjat', name:'Mansikka', per100g:32, dlGrams:60},
+  {cat:'Hedelmät ja marjat', name:'Vadelma', per100g:52, dlGrams:45},
+  {cat:'Hedelmät ja marjat', name:'Mustikka', per100g:43, dlGrams:65},
+  {cat:'Hedelmät ja marjat', name:'Karpalo', per100g:46, dlGrams:55},
+  {cat:'Hedelmät ja marjat', name:'Kiivi', perUnit:60, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Ananas', per100g:50},
+  {cat:'Hedelmät ja marjat', name:'Mango', perUnit:200, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Luumu', perUnit:30, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Aprikoosi', perUnit:35, unit:'kpl'},
+
+  // Rasvat, pähkinät ja siemenet
+  {cat:'Rasvat, pähkinät ja siemenet', name:'Voi', per100g:720},
+  {cat:'Rasvat, pähkinät ja siemenet', name:'Oliiviöljy', per100g:884, dlGrams:92},
+  {cat:'Rasvat, pähkinät ja siemenet', name:'Rypsiöljy', per100g:884, dlGrams:92},
+  {cat:'Rasvat, pähkinät ja siemenet', name:'Margariini (esim. Oivariini)', per100g:530},
+  {cat:'Rasvat, pähkinät ja siemenet', name:'Pähkinät (sekoitus)', per100g:600},
+  {cat:'Rasvat, pähkinät ja siemenet', name:'Manteli', perUnit:7, unit:'kpl'},
+  {cat:'Rasvat, pähkinät ja siemenet', name:'Saksanpähkinä', per100g:650},
+  {cat:'Rasvat, pähkinät ja siemenet', name:'Cashewpähkinä', per100g:553},
+  {cat:'Rasvat, pähkinät ja siemenet', name:'Maapähkinävoi', per100g:590},
+  {cat:'Rasvat, pähkinät ja siemenet', name:'Auringonkukansiemen', per100g:584},
+  {cat:'Rasvat, pähkinät ja siemenet', name:'Chiansiemen', per100g:486},
+  {cat:'Rasvat, pähkinät ja siemenet', name:'Pellavansiemen', per100g:534},
+  {cat:'Rasvat, pähkinät ja siemenet', name:'Tahini (seesamitahna)', per100g:595},
+  {cat:'Rasvat, pähkinät ja siemenet', name:'Hunaja', per100g:304, dlGrams:140},
+
+  // Juomat
+  {cat:'Juomat', name:'Kahvi, musta', per100g:1, dlGrams:100},
+  {cat:'Juomat', name:'Maito kahviin (kapallinen)', perUnit:10, unit:'annos'},
+  {cat:'Juomat', name:'Tee (ilman lisäkkeitä)', per100g:1, dlGrams:100},
+  {cat:'Juomat', name:'Kaakao (maidolla)', per100g:60, dlGrams:100},
+  {cat:'Juomat', name:'Kolajuoma', per100g:42, dlGrams:100},
+  {cat:'Juomat', name:'Light-virvoitusjuoma', per100g:1, dlGrams:100},
+  {cat:'Juomat', name:'Tuoremehu', per100g:45, dlGrams:100},
+  {cat:'Juomat', name:'Smoothie', per100g:60, dlGrams:105},
+  {cat:'Juomat', name:'Energiajuoma', per100g:45, dlGrams:100},
+  {cat:'Juomat', name:'Urheilujuoma', per100g:26, dlGrams:100},
+  {cat:'Juomat', name:'Olut, keskiolut', per100g:42, dlGrams:100},
+  {cat:'Juomat', name:'Olut, A-olut', per100g:45, dlGrams:100},
+  {cat:'Juomat', name:'Viini, punaviini', per100g:85, dlGrams:100},
+  {cat:'Juomat', name:'Viini, valkoviini', per100g:82, dlGrams:100},
+  {cat:'Juomat', name:'Siideri', per100g:48, dlGrams:100},
+  {cat:'Juomat', name:'Long drink', per100g:55, dlGrams:100},
+
+  // Makeiset ja leivonnaiset
+  {cat:'Makeiset ja leivonnaiset', name:'Suklaa, maito', per100g:535},
+  {cat:'Makeiset ja leivonnaiset', name:'Suklaa, tumma', per100g:545},
+  {cat:'Makeiset ja leivonnaiset', name:'Karkkisekoitus', per100g:390},
+  {cat:'Makeiset ja leivonnaiset', name:'Pulla (korvapuusti tms.)', perUnit:280, unit:'kpl'},
+  {cat:'Makeiset ja leivonnaiset', name:'Munkki', perUnit:250, unit:'kpl'},
+  {cat:'Makeiset ja leivonnaiset', name:'Keksi (esim. digestive)', perUnit:70, unit:'kpl'},
+  {cat:'Makeiset ja leivonnaiset', name:'Jäätelöpuikko', perUnit:230, unit:'kpl'},
+  {cat:'Makeiset ja leivonnaiset', name:'Vaniljakastike/-vanukas', per100g:110},
+  {cat:'Makeiset ja leivonnaiset', name:'Mämmi', per100g:105},
+  {cat:'Makeiset ja leivonnaiset', name:'Perunalastut', per100g:536},
+  {cat:'Makeiset ja leivonnaiset', name:'Popcorn (suolattu)', per100g:480},
+
+  // Valmisruoat ja pikaruoka
+  {cat:'Valmisruoat ja pikaruoka', name:'Pizza (yleinen)', per100g:266},
+  {cat:'Valmisruoat ja pikaruoka', name:'Hampurilainen (yleinen)', perUnit:550, unit:'kpl'},
+  {cat:'Valmisruoat ja pikaruoka', name:'Ranskalaiset perunat', per100g:312},
+  {cat:'Valmisruoat ja pikaruoka', name:'Kebab (annos, leivän kanssa)', perUnit:750, unit:'annos'},
+  {cat:'Valmisruoat ja pikaruoka', name:'Sushi (annos, 8-10 palaa)', perUnit:350, unit:'annos'},
+  {cat:'Valmisruoat ja pikaruoka', name:'Falafel', perUnit:60, unit:'kpl'},
+  {cat:'Valmisruoat ja pikaruoka', name:'Wokki (kasvis-liha, annos)', perUnit:550, unit:'annos'},
+  {cat:'Valmisruoat ja pikaruoka', name:'Lasagne, annos', perUnit:450, unit:'annos'},
+  {cat:'Valmisruoat ja pikaruoka', name:'Makaronilaatikko, annos', perUnit:400, unit:'annos'},
+  {cat:'Valmisruoat ja pikaruoka', name:'Kalakukko, viipale', perUnit:250, unit:'viipale'},
+  {cat:'Valmisruoat ja pikaruoka', name:'Poronkäristys perunoineen, annos', perUnit:600, unit:'annos'},
+
+  // Kastikkeet ja mausteet
+  {cat:'Kastikkeet ja mausteet', name:'Ketsuppi', per100g:100, dlGrams:110},
+  {cat:'Kastikkeet ja mausteet', name:'Majoneesi', per100g:680, dlGrams:90},
+  {cat:'Kastikkeet ja mausteet', name:'Öljykastike/vinaigrette', per100g:350},
+  {cat:'Kastikkeet ja mausteet', name:'Soijakastike', per100g:60, dlGrams:105},
+  {cat:'Kastikkeet ja mausteet', name:'Sinappi', per100g:150},
+];
+
+function compKcal(food, amount, unit){
+  if(!amount || amount<=0) return 0;
+  if(food.perUnit!=null) return Math.round(food.perUnit * amount);
+  if(unit==='dl' && food.dlGrams){
+    const grams = amount * food.dlGrams;
+    return Math.round(food.per100g * grams / 100);
+  }
+  return Math.round(food.per100g * amount / 100);
+}
+
+let components = [];
+let compUnit = 'g';
+
+function populateFoodSelect(filter){
+  const sel = document.getElementById('comp-food');
+  const q = (filter||'').trim().toLowerCase();
+  const matches = (i,f) => !q || f.name.toLowerCase().includes(q);
+  const cats = [...new Set(FOOD_DB.map(f=>f.cat))];
+  let html = '';
+  cats.forEach(cat=>{
+    const opts = FOOD_DB.map((f,i)=>({f,i})).filter(({f,i})=>f.cat===cat && matches(i,f));
+    if(opts.length===0) return;
+    html += `<optgroup label="${escapeHtml(cat)}">` +
+      opts.map(({f,i})=>`<option value="${i}">${escapeHtml(f.name)}</option>`).join('') +
+      `</optgroup>`;
+  });
+  if(!html) html = '<option disabled>Ei osumia</option>';
+  sel.innerHTML = html;
+  onCompFoodChange();
+}
+function setCompUnit(u){
+  compUnit = u;
+  document.getElementById('comp-unit').textContent = u;
+  document.getElementById('comp-unit-g').classList.toggle('sel', u==='g');
+  document.getElementById('comp-unit-dl').classList.toggle('sel', u==='dl');
+  document.getElementById('comp-amount').value = u==='dl' ? 1 : 100;
+}
+function onCompFoodChange(){
+  const idx = parseInt(document.getElementById('comp-food').value);
+  const food = FOOD_DB[idx];
+  const unitEl = document.getElementById('comp-unit');
+  const amountEl = document.getElementById('comp-amount');
+  const toggleEl = document.getElementById('comp-unit-toggle');
+  if(!food){ unitEl.textContent = '–'; toggleEl.style.display = 'none'; return; }
+  if(food.perUnit!=null){
+    toggleEl.style.display = 'none';
+    unitEl.textContent = food.unit;
+    amountEl.value = 1;
+  } else if(food.dlGrams){
+    toggleEl.style.display = 'flex';
+    compUnit = 'g';
+    setCompUnit('g');
+  } else {
+    toggleEl.style.display = 'none';
+    compUnit = 'g';
+    unitEl.textContent = 'g';
+    amountEl.value = 100;
+  }
+}
+function addComponent(){
+  const idx = parseInt(document.getElementById('comp-food').value);
+  const food = FOOD_DB[idx];
+  if(!food){ showToast('Valitse ensin ruoka-aine'); return; }
+  const amount = parseFloat(document.getElementById('comp-amount').value);
+  if(!amount || amount<=0){ showToast('Anna määrä'); return; }
+  const unit = food.perUnit!=null ? food.unit : compUnit;
+  const kcal = compKcal(food, amount, unit);
+  components.push({name:food.name, amount, unit, kcal});
+  renderComponents();
+  syncComponentsToForm();
+}
+function removeComponent(i){
+  components.splice(i,1);
+  renderComponents();
+  syncComponentsToForm();
+}
+function renderComponents(){
+  const el = document.getElementById('compList');
+  const totalEl = document.getElementById('compTotal');
+  if(components.length===0){ el.innerHTML=''; totalEl.style.display='none'; return; }
+  el.innerHTML = components.map((c,i)=>`
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border); font-size:13px;">
+      <span>${escapeHtml(c.name)} · ${c.amount}${c.unit}</span>
+      <span style="display:flex; align-items:center; gap:8px;">
+        <span class="mono" style="color:var(--teal);">${c.kcal} kcal</span>
+        <button class="del" onclick="removeComponent(${i})">✕</button>
+      </span>
+    </div>`).join('');
+  const total = components.reduce((s,c)=>s+c.kcal,0);
+  totalEl.style.display = 'block';
+  totalEl.textContent = 'Yhteensä: ' + total + ' kcal';
+}
+function syncComponentsToForm(){
+  if(components.length===0) return;
+  document.getElementById('f-item').value = components.map(c=>`${c.name} ${c.amount}${c.unit}`).join(', ');
+  document.getElementById('f-kcal').value = components.reduce((s,c)=>s+c.kcal,0);
+}
+
 let selTags = new Set();
 let tLevel = null, eTeho = null;
 
@@ -646,6 +953,7 @@ let initedForms = false;
 function initFormsOnce(){
   if(initedForms) return;
   initedForms = true;
+  populateFoodSelect();
   document.getElementById('f-date').value = todayStr();
   document.getElementById('t-date').value = todayStr();
   document.getElementById('t-time').value = nowTimeStr();
@@ -707,6 +1015,8 @@ async function saveFood(){
   document.getElementById('f-notes').value='';
   selTags.clear();
   document.querySelectorAll('#f-tags .chip').forEach(c=>c.classList.remove('sel'));
+  components = [];
+  renderComponents();
   showToast('Ateria tallennettu');
   renderFood();
 }
