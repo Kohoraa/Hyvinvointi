@@ -303,7 +303,7 @@
         <div style="font-size:12.5px; color:var(--text-dim); font-weight:600; margin-bottom:10px;">Rakenna ateria ainesosista</div>
         <div class="field" style="margin-bottom:8px;">
           <label>Hae ruoka-ainetta</label>
-          <input type="text" id="comp-search" placeholder="esim. kaura, kana, maito..." oninput="populateFoodSelect(this.value)">
+          <input type="text" id="comp-search" placeholder="esim. kaura, kana, maito..." oninput="onFoodSearchInput(this.value)">
         </div>
         <div class="row2">
           <div class="field" style="margin-bottom:8px;">
@@ -681,14 +681,38 @@ const FOOD_DB = [
   {cat:'Hedelmät ja marjat', name:'Päärynä', perUnit:100, unit:'kpl'},
   {cat:'Hedelmät ja marjat', name:'Appelsiini', perUnit:65, unit:'kpl'},
   {cat:'Hedelmät ja marjat', name:'Mandariini', perUnit:40, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Greippi', perUnit:80, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Sitruuna', perUnit:20, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Limetti', perUnit:20, unit:'kpl'},
   {cat:'Hedelmät ja marjat', name:'Viinirypäleet', per100g:69, dlGrams:60},
   {cat:'Hedelmät ja marjat', name:'Mansikka', per100g:32, dlGrams:60},
   {cat:'Hedelmät ja marjat', name:'Vadelma', per100g:52, dlGrams:45},
   {cat:'Hedelmät ja marjat', name:'Mustikka', per100g:43, dlGrams:65},
   {cat:'Hedelmät ja marjat', name:'Karpalo', per100g:46, dlGrams:55},
+  {cat:'Hedelmät ja marjat', name:'Puolukka', per100g:26, dlGrams:50},
+  {cat:'Hedelmät ja marjat', name:'Mustaherukka', per100g:63, dlGrams:60},
+  {cat:'Hedelmät ja marjat', name:'Punaherukka', per100g:56, dlGrams:55},
+  {cat:'Hedelmät ja marjat', name:'Karviaismarja', per100g:44, dlGrams:55},
+  {cat:'Hedelmät ja marjat', name:'Lakka/hilla', per100g:51, dlGrams:60},
+  {cat:'Hedelmät ja marjat', name:'Tyrni', per100g:53, dlGrams:60},
+  {cat:'Hedelmät ja marjat', name:'Kirsikka', per100g:63, dlGrams:70},
   {cat:'Hedelmät ja marjat', name:'Kiivi', perUnit:60, unit:'kpl'},
   {cat:'Hedelmät ja marjat', name:'Ananas', per100g:50},
   {cat:'Hedelmät ja marjat', name:'Mango', perUnit:200, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Papaija', per100g:43},
+  {cat:'Hedelmät ja marjat', name:'Vesimeloni', per100g:30},
+  {cat:'Hedelmät ja marjat', name:'Hunajameloni', per100g:36},
+  {cat:'Hedelmät ja marjat', name:'Granaattiomena', perUnit:150, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Persikka', perUnit:60, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Nektariini', perUnit:60, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Kaki (persimon)', perUnit:120, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Passionhedelmä', perUnit:17, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Litšisilmä', per100g:66},
+  {cat:'Hedelmät ja marjat', name:'Viikuna, tuore', perUnit:37, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Viikuna, kuivattu', per100g:249},
+  {cat:'Hedelmät ja marjat', name:'Taateli, kuivattu', perUnit:23, unit:'kpl'},
+  {cat:'Hedelmät ja marjat', name:'Rusina', per100g:299, dlGrams:65},
+  {cat:'Hedelmät ja marjat', name:'Kookos, raaka', per100g:354},
   {cat:'Hedelmät ja marjat', name:'Luumu', perUnit:30, unit:'kpl'},
   {cat:'Hedelmät ja marjat', name:'Aprikoosi', perUnit:35, unit:'kpl'},
 
@@ -772,22 +796,60 @@ function compKcal(food, amount, unit){
 
 let components = [];
 let compUnit = 'g';
+let fineliResults = [];
+let fineliSearchTimer = null;
 
-function populateFoodSelect(filter){
+function resolveFood(value){
+  if(!value) return null;
+  const sep = value.indexOf(':');
+  const source = value.slice(0, sep);
+  const idx = parseInt(value.slice(sep+1));
+  if(source === 'local') return FOOD_DB[idx] || null;
+  if(source === 'fineli'){
+    const r = fineliResults[idx];
+    if(!r) return null;
+    return { name: r.name_fi, per100g: r.kcal_per_100g };
+  }
+  return null;
+}
+
+function onFoodSearchInput(value){
+  clearTimeout(fineliSearchTimer);
+  fineliSearchTimer = setTimeout(()=>populateFoodSelect(value), 250);
+}
+
+async function populateFoodSelect(filter){
   const sel = document.getElementById('comp-food');
   const q = (filter||'').trim().toLowerCase();
-  const matches = (i,f) => !q || f.name.toLowerCase().includes(q);
+  const matches = (f) => !q || f.name.toLowerCase().includes(q);
   const cats = [...new Set(FOOD_DB.map(f=>f.cat))];
-  let html = '';
+  let localHtml = '';
   cats.forEach(cat=>{
-    const opts = FOOD_DB.map((f,i)=>({f,i})).filter(({f,i})=>f.cat===cat && matches(i,f));
+    const opts = FOOD_DB.map((f,i)=>({f,i})).filter(({f})=>f.cat===cat && matches(f));
     if(opts.length===0) return;
-    html += `<optgroup label="${escapeHtml(cat)}">` +
-      opts.map(({f,i})=>`<option value="${i}">${escapeHtml(f.name)}</option>`).join('') +
+    localHtml += `<optgroup label="${escapeHtml(cat)}">` +
+      opts.map(({f,i})=>`<option value="local:${i}">${escapeHtml(f.name)}</option>`).join('') +
       `</optgroup>`;
   });
-  if(!html) html = '<option disabled>Ei osumia</option>';
-  sel.innerHTML = html;
+
+  let fineliHtml = '';
+  if(q.length >= 2){
+    const { data, error } = await sb.from('fineli_foods')
+      .select('*').ilike('name_fi', `%${q}%`).order('name_fi').limit(40);
+    if(!error && data){
+      fineliResults = data;
+      if(data.length>0){
+        fineliHtml = `<optgroup label="Fineli-tietokanta (${data.length} osumaa)">` +
+          data.map((f,i)=>`<option value="fineli:${i}">${escapeHtml(f.name_fi)}</option>`).join('') +
+          `</optgroup>`;
+      }
+    }
+  } else {
+    fineliResults = [];
+  }
+
+  const html = localHtml + fineliHtml;
+  sel.innerHTML = html || '<option disabled>Ei osumia</option>';
   onCompFoodChange();
 }
 function setCompUnit(u){
@@ -798,8 +860,7 @@ function setCompUnit(u){
   document.getElementById('comp-amount').value = u==='dl' ? 1 : 100;
 }
 function onCompFoodChange(){
-  const idx = parseInt(document.getElementById('comp-food').value);
-  const food = FOOD_DB[idx];
+  const food = resolveFood(document.getElementById('comp-food').value);
   const unitEl = document.getElementById('comp-unit');
   const amountEl = document.getElementById('comp-amount');
   const toggleEl = document.getElementById('comp-unit-toggle');
@@ -820,8 +881,7 @@ function onCompFoodChange(){
   }
 }
 function addComponent(){
-  const idx = parseInt(document.getElementById('comp-food').value);
-  const food = FOOD_DB[idx];
+  const food = resolveFood(document.getElementById('comp-food').value);
   if(!food){ showToast('Valitse ensin ruoka-aine'); return; }
   const amount = parseFloat(document.getElementById('comp-amount').value);
   if(!amount || amount<=0){ showToast('Anna määrä'); return; }
@@ -933,6 +993,7 @@ async function showApp(){
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appRoot').style.display = 'flex';
   initFormsOnce();
+  if(userProfile === null) await loadProfile();
   await Promise.all([renderFood(), renderSymptoms(), renderExercise(), renderTimeline()]);
 }
 
@@ -1178,17 +1239,24 @@ async function renderExercise(){
     .select('*').order('entry_date', {ascending:false}).limit(10);
   if(error){ el.innerHTML = `<div class="empty">Virhe: ${escapeHtml(error.message)}</div>`; return; }
   if(!data || data.length===0){ el.innerHTML = '<div class="empty">Ei merkintöjä vielä</div>'; return; }
-  el.innerHTML = data.map(e=>`
+  const weight = userProfile?.weight_kg;
+  el.innerHTML = data.map(e=>{
+    const kcal = weight ? exerciseKcal(e, weight) : null;
+    return `
     <div class="entry">
       <div>
         <div class="entry-main">${fmtDate(e.entry_date)} · ${escapeHtml(e.type)}</div>
         <div class="entry-meta">${e.feeling?escapeHtml(e.feeling):''}</div>
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
-        <div class="entry-val">${e.duration_min?e.duration_min+' min':''}</div>
+        <div class="entry-val">${e.duration_min?e.duration_min+' min':''}${kcal!=null?' · ~'+kcal+' kcal':''}</div>
         <button class="del" onclick="delExercise(${e.id})">✕</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+  if(!weight){
+    el.innerHTML += '<div class="empty" style="text-align:left; padding-top:6px;">Täytä paino Yhteenveto-välilehden profiilissa, niin näet kcal-arvion jokaiselle treenille.</div>';
+  }
 }
 
 async function delExercise(id){
