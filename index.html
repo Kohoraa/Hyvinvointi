@@ -350,28 +350,24 @@
   <!-- TURVOTUS -->
   <div class="view" id="view-turvotus">
     <div class="card">
-      <div class="card-title"><span class="dot"></span>Päivän merkintä</div>
-      <div class="field">
-        <label>Päivämäärä</label>
-        <input type="date" id="t-date">
-      </div>
-      <div class="field">
-        <label>Turvotus aamulla</label>
-        <div class="scale" id="t-am-scale"></div>
-      </div>
-      <div class="field">
-        <label>Turvotus illalla</label>
-        <div class="scale" id="t-pm-scale"></div>
-      </div>
+      <div class="card-title"><span class="dot"></span>Uusi merkintä</div>
       <div class="row2">
         <div class="field">
-          <label>Vyötärö aamulla (cm)</label>
-          <input type="number" step="0.1" id="t-waist-am" placeholder="91.5">
+          <label>Päivämäärä</label>
+          <input type="date" id="t-date">
         </div>
         <div class="field">
-          <label>Vyötärö illalla (cm)</label>
-          <input type="number" step="0.1" id="t-waist-pm" placeholder="93.5">
+          <label>Kellonaika</label>
+          <input type="time" id="t-time">
         </div>
+      </div>
+      <div class="field">
+        <label>Turvotuksen taso</label>
+        <div class="scale" id="t-scale"></div>
+      </div>
+      <div class="field">
+        <label>Vyötärö juuri nyt (cm, valinnainen)</label>
+        <input type="number" step="0.1" id="t-waist" placeholder="92.0">
       </div>
       <div class="field">
         <label>Muut oireet</label>
@@ -385,11 +381,19 @@
         <label>Muistiinpanot</label>
         <textarea id="t-notes"></textarea>
       </div>
-      <button class="btn" id="t-save-btn" onclick="saveSymptom()">Tallenna päivä</button>
+      <button class="btn" id="t-save-btn" onclick="saveBloatEvent()">Tallenna merkintä</button>
     </div>
 
     <div class="card">
-      <div class="card-title"><span class="dot"></span>Viimeisimmät päivät</div>
+      <div class="card-title"><span class="dot"></span>Päivän aikajana</div>
+      <div class="field" style="margin-bottom:10px;">
+        <input type="date" id="tl-date" onchange="renderTimeline()">
+      </div>
+      <div id="timelineList"><div class="empty">Ladataan…</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>Viimeisimmät merkinnät</div>
       <div id="symptomList"><div class="empty">Ladataan…</div></div>
     </div>
   </div>
@@ -482,22 +486,22 @@
         <div class="stat"><div class="num mono" id="s-kcal">–</div><div class="lbl">Energiaa syöty ka./pv (kcal)</div></div>
         <div class="stat"><div class="num mono" id="s-burn">–</div><div class="lbl">Arvioitu kulutus ka./pv (kcal)</div></div>
         <div class="stat" id="s-balance-card"><div class="num mono" id="s-balance">–</div><div class="lbl">Energiatase ka./pv (kcal)</div></div>
-        <div class="stat" id="s-gap-card"><div class="num mono" id="s-gap">–</div><div class="lbl">Vyötärön ero ilta−aamu ka. (cm)</div></div>
-        <div class="stat"><div class="num mono" id="s-waist-am">–</div><div class="lbl">Vyötärö aamu ka. (cm)</div></div>
-        <div class="stat"><div class="num mono" id="s-bloat">–</div><div class="lbl">Turvotus ka. (1–5)</div></div>
+        <div class="stat" id="s-bloat-card"><div class="num mono" id="s-bloat">–</div><div class="lbl">Turvotus ka. (1–5)</div></div>
+        <div class="stat"><div class="num mono" id="s-waist-am">–</div><div class="lbl">Vyötärö ka. (cm)</div></div>
+        <div class="stat"><div class="num mono" id="s-bloat-count">–</div><div class="lbl">Turvotusmerkintöjä (7pv)</div></div>
         <div class="stat"><div class="num mono" id="s-gym">–</div><div class="lbl">Kuntosalikerrat</div></div>
         <div class="stat"><div class="num mono" id="s-swim">–</div><div class="lbl">Uintikerrat</div></div>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-title"><span class="dot"></span>Vyötärön ero, viim. 14 pv</div>
+      <div class="card-title"><span class="dot"></span>Turvotus ka./pv, viim. 14 pv</div>
       <svg class="spark" id="sparkGap" viewBox="0 0 300 54" preserveAspectRatio="none"></svg>
       <div class="empty" id="sparkGapEmpty" style="display:none;">Ei vielä tarpeeksi tietoa</div>
     </div>
 
     <div class="card">
-      <div class="card-title"><span class="dot"></span>Aamuvyötärö, viim. 14 pv</div>
+      <div class="card-title"><span class="dot"></span>Vyötärö ka./pv, viim. 14 pv</div>
       <svg class="spark" id="sparkWaist" viewBox="0 0 300 54" preserveAspectRatio="none"></svg>
       <div class="empty" id="sparkWaistEmpty" style="display:none;">Ei vielä tarpeeksi tietoa</div>
     </div>
@@ -548,11 +552,15 @@ const titles = {
 };
 
 let selTags = new Set();
-let tAm = null, tPm = null, eTeho = null;
+let tLevel = null, eTeho = null;
 
 function todayStr(){
   const d = new Date();
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function nowTimeStr(){
+  const d = new Date();
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
 }
 function daysAgo(n){
   const d = new Date();
@@ -618,7 +626,7 @@ async function showApp(){
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appRoot').style.display = 'flex';
   initFormsOnce();
-  await Promise.all([renderFood(), renderSymptoms(), renderExercise()]);
+  await Promise.all([renderFood(), renderSymptoms(), renderExercise(), renderTimeline()]);
 }
 
 sb.auth.onAuthStateChange((event, session) => {
@@ -640,9 +648,10 @@ function initFormsOnce(){
   initedForms = true;
   document.getElementById('f-date').value = todayStr();
   document.getElementById('t-date').value = todayStr();
+  document.getElementById('t-time').value = nowTimeStr();
+  document.getElementById('tl-date').value = todayStr();
   document.getElementById('e-date').value = todayStr();
-  buildScale('t-am-scale', 5, v=>tAm=v);
-  buildScale('t-pm-scale', 5, v=>tPm=v);
+  buildScale('t-scale', 5, v=>tLevel=v);
   buildScale('e-scale', 5, v=>eTeho=v);
   document.getElementById('f-date').addEventListener('change', renderFood);
   document.querySelectorAll('#f-tags .chip').forEach(chip=>{
@@ -729,56 +738,105 @@ async function delFood(id){
 }
 
 // ============================================================
-// SYMPTOM (upsert per date)
+// TURVOTUS (tapahtumapohjainen)
 // ============================================================
-async function saveSymptom(){
+async function saveBloatEvent(){
   const date = document.getElementById('t-date').value || todayStr();
+  const time = document.getElementById('t-time').value || nowTimeStr();
+  if(tLevel === null){ showToast('Valitse turvotuksen taso'); return; }
   const rec = {
     entry_date: date,
-    bloat_am: tAm, bloat_pm: tPm,
-    waist_am: parseFloat(document.getElementById('t-waist-am').value) || null,
-    waist_pm: parseFloat(document.getElementById('t-waist-pm').value) || null,
+    entry_time: time,
+    bloat_level: tLevel,
+    waist_cm: parseFloat(document.getElementById('t-waist').value) || null,
     symptoms: document.getElementById('t-symptoms').value.trim(),
     cause: document.getElementById('t-cause').value.trim(),
-    notes: document.getElementById('t-notes').value.trim(),
-    updated_at: new Date().toISOString()
+    notes: document.getElementById('t-notes').value.trim()
   };
   const btn = document.getElementById('t-save-btn');
   btn.disabled = true;
-  const { error } = await sb.from('symptom_entries')
-    .upsert(rec, { onConflict: 'user_id,entry_date' });
+  const { error } = await sb.from('bloat_events').insert(rec);
   btn.disabled = false;
   if(error){ showToast('Virhe: ' + error.message); return; }
-  showToast('Päivä tallennettu');
+  document.getElementById('t-waist').value = '';
+  document.getElementById('t-symptoms').value = '';
+  document.getElementById('t-cause').value = '';
+  document.getElementById('t-notes').value = '';
+  document.getElementById('t-time').value = nowTimeStr();
+  showToast('Merkintä tallennettu');
   renderSymptoms();
+  // Jos merkintä koskee samaa päivää kuin aikajana näyttää, päivitä sekin
+  if(document.getElementById('tl-date').value === date) renderTimeline();
 }
 
 async function renderSymptoms(){
   const el = document.getElementById('symptomList');
-  const { data, error } = await sb.from('symptom_entries')
-    .select('*').order('entry_date', {ascending:false}).limit(10);
+  const { data, error } = await sb.from('bloat_events')
+    .select('*').order('entry_date', {ascending:false}).order('entry_time', {ascending:false}).limit(15);
   if(error){ el.innerHTML = `<div class="empty">Virhe: ${escapeHtml(error.message)}</div>`; return; }
   if(!data || data.length===0){ el.innerHTML = '<div class="empty">Ei merkintöjä vielä</div>'; return; }
-  el.innerHTML = data.map(e=>{
-    const gap = (e.waist_am!=null && e.waist_pm!=null) ? (e.waist_pm-e.waist_am).toFixed(1) : null;
-    return `
+  el.innerHTML = data.map(e=>`
     <div class="entry">
       <div>
-        <div class="entry-main">${fmtDate(e.entry_date)} · turvotus ${e.bloat_am??'–'}→${e.bloat_pm??'–'}</div>
+        <div class="entry-main">${fmtDate(e.entry_date)} ${e.entry_time?.slice(0,5)||''} · taso ${e.bloat_level}</div>
         <div class="entry-meta">${e.symptoms?escapeHtml(e.symptoms):''}${e.cause?' · syy: '+escapeHtml(e.cause):''}</div>
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
-        <div class="entry-val">${gap!=null?(gap>0?'+':'')+gap+' cm':''}</div>
-        <button class="del" onclick="delSymptom('${e.entry_date}')">✕</button>
+        <div class="entry-val">${e.waist_cm!=null?e.waist_cm+' cm':''}</div>
+        <button class="del" onclick="delBloatEvent(${e.id})">✕</button>
       </div>
-    </div>`;
-  }).join('');
+    </div>`).join('');
 }
 
-async function delSymptom(date){
-  const { error } = await sb.from('symptom_entries').delete().eq('entry_date', date);
+async function delBloatEvent(id){
+  const { error } = await sb.from('bloat_events').delete().eq('id', id);
   if(error){ showToast('Virhe: ' + error.message); return; }
   renderSymptoms();
+  renderTimeline();
+}
+
+async function renderTimeline(){
+  const dateInput = document.getElementById('tl-date');
+  const date = dateInput.value || todayStr();
+  const el = document.getElementById('timelineList');
+  el.innerHTML = '<div class="empty">Ladataan…</div>';
+
+  const [foodRes, bloatRes] = await Promise.all([
+    sb.from('food_entries').select('*').eq('entry_date', date).order('created_at', {ascending:true}),
+    sb.from('bloat_events').select('*').eq('entry_date', date).order('entry_time', {ascending:true})
+  ]);
+  if(foodRes.error || bloatRes.error){
+    el.innerHTML = `<div class="empty">Virhe: ${escapeHtml((foodRes.error||bloatRes.error).message)}</div>`;
+    return;
+  }
+  const items = [];
+  (foodRes.data||[]).forEach(e=>{
+    const t = new Date(e.created_at);
+    const hh = String(t.getHours()).padStart(2,'0'), mm = String(t.getMinutes()).padStart(2,'0');
+    items.push({
+      time: hh+':'+mm, sortKey: hh+mm, kind:'food',
+      main: `${escapeHtml(e.meal)}: ${escapeHtml(e.item)}`,
+      meta: e.kcal ? e.kcal+' kcal' : ''
+    });
+  });
+  (bloatRes.data||[]).forEach(e=>{
+    const time = (e.entry_time||'').slice(0,5);
+    items.push({
+      time, sortKey: time.replace(':',''), kind:'bloat',
+      main: `Turvotus taso ${e.bloat_level}${e.waist_cm!=null?' · '+e.waist_cm+' cm':''}`,
+      meta: [e.symptoms, e.cause].filter(Boolean).map(escapeHtml).join(' · ')
+    });
+  });
+  items.sort((a,b)=>a.sortKey.localeCompare(b.sortKey));
+
+  if(items.length===0){ el.innerHTML = '<div class="empty">Ei merkintöjä tälle päivälle</div>'; return; }
+  el.innerHTML = items.map(it=>`
+    <div class="entry">
+      <div>
+        <div class="entry-main">${it.kind==='bloat'?'💧':'🍽️'} ${it.time} · ${it.main}</div>
+        ${it.meta ? `<div class="entry-meta">${it.meta}</div>` : ''}
+      </div>
+    </div>`).join('');
 }
 
 // ============================================================
@@ -886,22 +944,35 @@ async function saveProfile(){
 // ============================================================
 // SUMMARY
 // ============================================================
+function avgByDate(rows, key){
+  const byDate = new Map();
+  rows.forEach(r=>{
+    if(r[key]==null) return;
+    if(!byDate.has(r.entry_date)) byDate.set(r.entry_date, []);
+    byDate.get(r.entry_date).push(r[key]);
+  });
+  return [...byDate.keys()].sort().map(date=>{
+    const vals = byDate.get(date);
+    return vals.reduce((a,b)=>a+b,0)/vals.length;
+  });
+}
+
 async function renderSummary(){
   const cutoff7 = daysAgo(6);
   const cutoff14 = daysAgo(13);
 
   if(userProfile === null) await loadProfile();
 
-  const [foodRes, symRes7, symRes14, exRes] = await Promise.all([
+  const [foodRes, bloatRes7, bloatRes14, exRes] = await Promise.all([
     sb.from('food_entries').select('kcal,entry_date').gte('entry_date', cutoff7),
-    sb.from('symptom_entries').select('*').gte('entry_date', cutoff7),
-    sb.from('symptom_entries').select('*').gte('entry_date', cutoff14).order('entry_date', {ascending:true}),
+    sb.from('bloat_events').select('*').gte('entry_date', cutoff7),
+    sb.from('bloat_events').select('*').gte('entry_date', cutoff14).order('entry_date', {ascending:true}),
     sb.from('exercise_entries').select('*').gte('entry_date', cutoff7)
   ]);
 
   const food7 = foodRes.data || [];
-  const sym7 = symRes7.data || [];
-  const sym14 = symRes14.data || [];
+  const bloat7 = bloatRes7.data || [];
+  const bloat14 = bloatRes14.data || [];
   const ex7 = exRes.data || [];
 
   const daysInWindow = 7;
@@ -930,21 +1001,22 @@ async function renderSummary(){
     balanceCard.classList.remove('warn');
   }
 
-  const avg = (arr,key)=>{ const v=arr.map(e=>e[key]).filter(x=>x!=null); return v.length? (v.reduce((a,b)=>a+b,0)/v.length):null; };
-  const gapVals = sym7.filter(e=>e.waist_am!=null && e.waist_pm!=null).map(e=>e.waist_pm-e.waist_am);
-  const gapAvg = gapVals.length ? (gapVals.reduce((a,b)=>a+b,0)/gapVals.length) : null;
-  document.getElementById('s-gap').textContent = gapAvg!=null ? (gapAvg>0?'+':'')+gapAvg.toFixed(1) : '–';
-  document.getElementById('s-gap-card').classList.toggle('warn', gapAvg!=null && gapAvg>=2);
-  const waistAmAvg = avg(sym7,'waist_am');
-  document.getElementById('s-waist-am').textContent = waistAmAvg!=null ? waistAmAvg.toFixed(1) : '–';
-  const bloatVals = [...sym7.map(e=>e.bloat_am), ...sym7.map(e=>e.bloat_pm)].filter(x=>x!=null);
-  document.getElementById('s-bloat').textContent = bloatVals.length ? (bloatVals.reduce((a,b)=>a+b,0)/bloatVals.length).toFixed(1) : '–';
+  const bloatLevels = bloat7.map(e=>e.bloat_level).filter(x=>x!=null);
+  const bloatAvg = bloatLevels.length ? bloatLevels.reduce((a,b)=>a+b,0)/bloatLevels.length : null;
+  document.getElementById('s-bloat').textContent = bloatAvg!=null ? bloatAvg.toFixed(1) : '–';
+  document.getElementById('s-bloat-card').classList.toggle('warn', bloatAvg!=null && bloatAvg>=3.5);
+
+  const waistVals = bloat7.map(e=>e.waist_cm).filter(x=>x!=null);
+  const waistAvg = waistVals.length ? waistVals.reduce((a,b)=>a+b,0)/waistVals.length : null;
+  document.getElementById('s-waist-am').textContent = waistAvg!=null ? waistAvg.toFixed(1) : '–';
+
+  document.getElementById('s-bloat-count').textContent = bloat7.length;
 
   document.getElementById('s-gym').textContent = ex7.filter(e=>e.type==='Kuntosali').length;
   document.getElementById('s-swim').textContent = ex7.filter(e=>e.type==='Uinti').length;
 
-  drawSpark('sparkGap', sym14.filter(e=>e.waist_am!=null&&e.waist_pm!=null).map(e=>e.waist_pm-e.waist_am), 'sparkGapEmpty', '#E2A24C');
-  drawSpark('sparkWaist', sym14.filter(e=>e.waist_am!=null).map(e=>e.waist_am), 'sparkWaistEmpty', '#4FBDAE');
+  drawSpark('sparkGap', avgByDate(bloat14,'bloat_level'), 'sparkGapEmpty', '#E2A24C');
+  drawSpark('sparkWaist', avgByDate(bloat14,'waist_cm'), 'sparkWaistEmpty', '#4FBDAE');
 }
 
 function csvEscape(val){
