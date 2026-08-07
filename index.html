@@ -375,6 +375,18 @@
 
   <!-- TURVOTUS -->
   <div class="view" id="view-turvotus">
+    <div class="card" style="background:linear-gradient(160deg, rgba(232,67,147,0.12), var(--surface)); border-color:rgba(232,67,147,0.35);">
+      <div class="card-title"><span class="dot" style="background:#E84393;"></span>Ilmavaivat</div>
+      <button id="gas-btn" onclick="logGasEvent()" style="width:100%; padding:20px; border:none; border-radius:14px; background:#E84393; color:#fff; font-size:17px; font-weight:700; font-family:'Space Grotesk',sans-serif; cursor:pointer; letter-spacing:0.01em; box-shadow:0 4px 14px rgba(232,67,147,0.4);">
+        💨 + Pieru
+      </button>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
+        <div style="font-size:13px; color:var(--text-dim);">Tänään: <span class="mono" id="gas-today-count" style="color:#E84393; font-weight:600;">–</span></div>
+        <div class="scale" id="gas-scale" style="max-width:160px;"></div>
+      </div>
+      <div class="empty" style="text-align:left; margin-top:8px; padding:0;">Asteikko 1-3 on valinnainen ja jää muistiin seuraavaa painallusta varten. Pelkkä napin painallus riittää.</div>
+    </div>
+
     <div class="card">
       <div class="card-title"><span class="dot"></span>Uusi merkintä</div>
       <div class="row2">
@@ -515,9 +527,16 @@
         <div class="stat" id="s-bloat-card"><div class="num mono" id="s-bloat">–</div><div class="lbl">Turvotus ka. (1–5)</div></div>
         <div class="stat"><div class="num mono" id="s-waist-am">–</div><div class="lbl">Vyötärö ka. (cm)</div></div>
         <div class="stat"><div class="num mono" id="s-bloat-count">–</div><div class="lbl">Turvotusmerkintöjä (7pv)</div></div>
+        <div class="stat" id="s-gas-card"><div class="num mono" id="s-gas">–</div><div class="lbl">Ilmavaivat ka./pv (7pv)</div></div>
         <div class="stat"><div class="num mono" id="s-gym">–</div><div class="lbl">Kuntosalikerrat</div></div>
         <div class="stat"><div class="num mono" id="s-swim">–</div><div class="lbl">Uintikerrat</div></div>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:#E84393;"></span>Ilmavaivat/pv, viim. 14 pv</div>
+      <svg class="spark" id="sparkGas" viewBox="0 0 300 54" preserveAspectRatio="none"></svg>
+      <div class="empty" id="sparkGasEmpty" style="display:none;">Ei vielä tarpeeksi tietoa</div>
     </div>
 
     <div class="card">
@@ -994,7 +1013,7 @@ async function showApp(){
   document.getElementById('appRoot').style.display = 'flex';
   initFormsOnce();
   if(userProfile === null) await loadProfile();
-  await Promise.all([renderFood(), renderSymptoms(), renderExercise(), renderTimeline()]);
+  await Promise.all([renderFood(), renderSymptoms(), renderExercise(), renderTimeline(), refreshGasTodayCount()]);
 }
 
 sb.auth.onAuthStateChange((event, session) => {
@@ -1022,6 +1041,7 @@ function initFormsOnce(){
   document.getElementById('e-date').value = todayStr();
   buildScale('t-scale', 5, v=>tLevel=v);
   buildScale('e-scale', 5, v=>eTeho=v);
+  buildGasScale();
   document.getElementById('f-date').addEventListener('change', renderFood);
   document.querySelectorAll('#f-tags .chip').forEach(chip=>{
     chip.onclick = ()=>{
@@ -1109,6 +1129,42 @@ async function delFood(id){
 }
 
 // ============================================================
+// ILMAVAIVAT (pierulaskuri)
+// ============================================================
+let gasIntensity = null;
+function buildGasScale(){
+  const c = document.getElementById('gas-scale');
+  c.innerHTML = '';
+  for(let i=1;i<=3;i++){
+    const b = document.createElement('button');
+    b.textContent = i;
+    b.type = 'button';
+    b.onclick = ()=>{
+      gasIntensity = (gasIntensity === i) ? null : i;
+      [...c.children].forEach(x=>x.classList.remove('sel'));
+      if(gasIntensity) b.classList.add('sel');
+    };
+    c.appendChild(b);
+  }
+}
+async function logGasEvent(){
+  const btn = document.getElementById('gas-btn');
+  btn.disabled = true;
+  const rec = { entry_date: todayStr(), entry_time: nowTimeStr(), intensity: gasIntensity };
+  const { error } = await sb.from('gas_events').insert(rec);
+  btn.disabled = false;
+  if(error){ showToast('Virhe: ' + error.message); return; }
+  showToast('Kirjattu 💨');
+  refreshGasTodayCount();
+  if(document.getElementById('tl-date').value === todayStr()) renderTimeline();
+}
+async function refreshGasTodayCount(){
+  const { count, error } = await sb.from('gas_events')
+    .select('*', { count:'exact', head:true }).eq('entry_date', todayStr());
+  document.getElementById('gas-today-count').textContent = error ? '–' : (count ?? 0);
+}
+
+// ============================================================
 // TURVOTUS (tapahtumapohjainen)
 // ============================================================
 async function saveBloatEvent(){
@@ -1172,12 +1228,13 @@ async function renderTimeline(){
   const el = document.getElementById('timelineList');
   el.innerHTML = '<div class="empty">Ladataan…</div>';
 
-  const [foodRes, bloatRes] = await Promise.all([
+  const [foodRes, bloatRes, gasRes] = await Promise.all([
     sb.from('food_entries').select('*').eq('entry_date', date).order('created_at', {ascending:true}),
-    sb.from('bloat_events').select('*').eq('entry_date', date).order('entry_time', {ascending:true})
+    sb.from('bloat_events').select('*').eq('entry_date', date).order('entry_time', {ascending:true}),
+    sb.from('gas_events').select('*').eq('entry_date', date).order('entry_time', {ascending:true})
   ]);
-  if(foodRes.error || bloatRes.error){
-    el.innerHTML = `<div class="empty">Virhe: ${escapeHtml((foodRes.error||bloatRes.error).message)}</div>`;
+  if(foodRes.error || bloatRes.error || gasRes.error){
+    el.innerHTML = `<div class="empty">Virhe: ${escapeHtml((foodRes.error||bloatRes.error||gasRes.error).message)}</div>`;
     return;
   }
   const items = [];
@@ -1198,13 +1255,21 @@ async function renderTimeline(){
       meta: [e.symptoms, e.cause].filter(Boolean).map(escapeHtml).join(' · ')
     });
   });
+  (gasRes.data||[]).forEach(e=>{
+    const time = (e.entry_time||'').slice(0,5);
+    items.push({
+      time, sortKey: time.replace(':',''), kind:'gas',
+      main: `Ilmavaiva${e.intensity?' · taso '+e.intensity:''}`,
+      meta: ''
+    });
+  });
   items.sort((a,b)=>a.sortKey.localeCompare(b.sortKey));
 
   if(items.length===0){ el.innerHTML = '<div class="empty">Ei merkintöjä tälle päivälle</div>'; return; }
   el.innerHTML = items.map(it=>`
     <div class="entry">
       <div>
-        <div class="entry-main">${it.kind==='bloat'?'💧':'🍽️'} ${it.time} · ${it.main}</div>
+        <div class="entry-main">${it.kind==='bloat'?'💧':it.kind==='gas'?'💨':'🍽️'} ${it.time} · ${it.main}</div>
         ${it.meta ? `<div class="entry-meta">${it.meta}</div>` : ''}
       </div>
     </div>`).join('');
@@ -1334,6 +1399,13 @@ function avgByDate(rows, key){
     return vals.reduce((a,b)=>a+b,0)/vals.length;
   });
 }
+function countByDate(rows){
+  const byDate = new Map();
+  rows.forEach(r=>{
+    byDate.set(r.entry_date, (byDate.get(r.entry_date)||0) + 1);
+  });
+  return [...byDate.keys()].sort().map(date=>byDate.get(date));
+}
 
 async function renderSummary(){
   const cutoff7 = daysAgo(6);
@@ -1341,17 +1413,21 @@ async function renderSummary(){
 
   if(userProfile === null) await loadProfile();
 
-  const [foodRes, bloatRes7, bloatRes14, exRes] = await Promise.all([
+  const [foodRes, bloatRes7, bloatRes14, exRes, gasRes7, gasRes14] = await Promise.all([
     sb.from('food_entries').select('kcal,entry_date').gte('entry_date', cutoff7),
     sb.from('bloat_events').select('*').gte('entry_date', cutoff7),
     sb.from('bloat_events').select('*').gte('entry_date', cutoff14).order('entry_date', {ascending:true}),
-    sb.from('exercise_entries').select('*').gte('entry_date', cutoff7)
+    sb.from('exercise_entries').select('*').gte('entry_date', cutoff7),
+    sb.from('gas_events').select('entry_date').gte('entry_date', cutoff7),
+    sb.from('gas_events').select('entry_date').gte('entry_date', cutoff14).order('entry_date', {ascending:true})
   ]);
 
   const food7 = foodRes.data || [];
   const bloat7 = bloatRes7.data || [];
   const bloat14 = bloatRes14.data || [];
   const ex7 = exRes.data || [];
+  const gas7 = gasRes7.data || [];
+  const gas14 = gasRes14.data || [];
 
   const daysInWindow = 7;
   const kcalSum = food7.reduce((s,e)=>s+(e.kcal||0),0);
@@ -1390,9 +1466,14 @@ async function renderSummary(){
 
   document.getElementById('s-bloat-count').textContent = bloat7.length;
 
+  const gasPerDay = gas7.length / daysInWindow;
+  document.getElementById('s-gas').textContent = gasPerDay.toFixed(1);
+  document.getElementById('s-gas-card').classList.toggle('warn', gasPerDay >= 8);
+
   document.getElementById('s-gym').textContent = ex7.filter(e=>e.type==='Kuntosali').length;
   document.getElementById('s-swim').textContent = ex7.filter(e=>e.type==='Uinti').length;
 
+  drawSpark('sparkGas', countByDate(gas14), 'sparkGasEmpty', '#E84393');
   drawSpark('sparkGap', avgByDate(bloat14,'bloat_level'), 'sparkGapEmpty', '#E2A24C');
   drawSpark('sparkWaist', avgByDate(bloat14,'waist_cm'), 'sparkWaistEmpty', '#4FBDAE');
 }
