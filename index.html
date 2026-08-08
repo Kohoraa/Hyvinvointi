@@ -379,9 +379,12 @@
   <div class="view" id="view-turvotus">
     <div class="card" style="background:linear-gradient(160deg, rgba(232,67,147,0.12), var(--surface)); border-color:rgba(232,67,147,0.35);">
       <div class="card-title"><span class="dot" style="background:#E84393;"></span>Ilmavaivat</div>
-      <button id="gas-btn" onclick="logGasEvent()" style="width:100%; padding:20px; border:none; border-radius:14px; background:#E84393; color:#fff; font-size:17px; font-weight:700; font-family:'Space Grotesk',sans-serif; cursor:pointer; letter-spacing:0.01em; box-shadow:0 4px 14px rgba(232,67,147,0.4);">
-        💨 + Pieru
-      </button>
+      <div style="display:flex; justify-content:center; padding:6px 0 4px;">
+        <button id="gas-btn" onclick="logGasEvent()" style="width:150px; height:150px; border-radius:50%; border:none; background:radial-gradient(circle at 35% 30%, #F368A8, #E84393); color:#fff; font-size:15px; font-weight:700; font-family:'Space Grotesk',sans-serif; cursor:pointer; letter-spacing:0.01em; box-shadow:0 6px 20px rgba(232,67,147,0.45), inset 0 2px 4px rgba(255,255,255,0.25); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; transition:transform .1s;" onmousedown="this.style.transform='scale(0.94)'" onmouseup="this.style.transform='scale(1)'" ontouchstart="this.style.transform='scale(0.94)'" ontouchend="this.style.transform='scale(1)'">
+          <span style="font-size:34px; line-height:1;">💨</span>
+          <span>+ Pieru</span>
+        </button>
+      </div>
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
         <div style="font-size:13px; color:var(--text-dim);">Tänään: <span class="mono" id="gas-today-count" style="color:#E84393; font-weight:600;">–</span></div>
         <div class="scale" id="gas-scale" style="max-width:160px;"></div>
